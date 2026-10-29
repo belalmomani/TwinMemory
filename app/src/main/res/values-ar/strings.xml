@@ -9,7 +9,7 @@
     <string name="status_offline">غير متصل</string>
     <string name="empty_title">لا توجد عناصر بعد</string>
     <string name="empty_body">حفظ العناصر والربط بالكمبيوتر يصلان في الإصدارات القادمة.</string>
-    <string name="nav_home">الرئيسية</string>
+    <string name="nav_home">الصفحة الرئيسية</string>
     <string name="nav_folders">المجلدات</string>
     <string name="nav_favorites">المفضلة</string>
     <string name="nav_more">المزيد</string>
@@ -79,4 +79,25 @@
     <string name="storage_note">ملفاتك محفوظة داخل التطبيق على هذا الجهاز فقط، ولا تُرفع إلى أي خدمة سحابية.</string>
     <string name="storage_used">المساحة المستخدمة: %1$s</string>
     <string name="version">الإصدار %1$s (%2$d)</string>
+    <string name="cat_files">الملفات</string>
+    <string name="cat_photos">الصور</string>
+    <string name="cat_links">الروابط</string>
+    <string name="cat_texts">النصوص</string>
+    <string name="section_folders">المجلدات</string>
+    <string name="section_tools">أدوات سريعة</string>
+    <string name="zone_phone">هاتف C</string>
+    <string name="zone_pc">كمبيوتر D</string>
+    <string name="zone_shared">TwinMemory</string>
+    <string name="tool_queue">قائمة النقل</string>
+    <string name="tool_help">مساعدة</string>
+    <string name="tool_settings">الإعدادات</string>
+    <string name="count_none">لا عناصر</string>
+    <string name="count_items">%1$d عنصر</string>
+    <string name="zone_pc_empty">يظهر هنا ما يصل من الكمبيوتر بعد ربط الهاتف به (قريبًا).</string>
+    <string name="queue_empty">لا توجد عمليات نقل. تظهر هنا بعد ربط الهاتف بالكمبيوتر.</string>
+    <string name="help_title">مساعدة</string>
+    <string name="help_body">• اضغط «حفظ» لحفظ نص أو رابط أو استيراد ملف.
+• من أي تطبيق: مشاركة ← TwinMemory.
+• اضغط مطولًا على عنصر للنسخ والنقل والمشاركة وغيرها.
+• المحذوفات تبقى في السلة حتى تحذفها نهائيًا.</string>
 </resources>

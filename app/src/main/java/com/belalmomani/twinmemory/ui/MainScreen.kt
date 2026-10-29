@@ -1,11 +1,11 @@
 package com.belalmomani.twinmemory.ui
 
 import android.text.format.Formatter
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,6 +46,8 @@ fun MainScreen(vm: MainViewModel) {
     val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showTrash by rememberSaveable { mutableStateOf(false) }
+    var route by rememberSaveable { mutableStateOf<String?>(null) }
+    var help by remember { mutableStateOf(false) }
     var dlg by remember { mutableStateOf<Dlg?>(null) }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.msgs.collect { snack.showSnackbar(ctx.getString(it)) } }
@@ -73,23 +75,43 @@ fun MainScreen(vm: MainViewModel) {
         onProps = { dlg = Dlg.Props(it) },
         onTrash = { vm.trash(it) },
     )
-    val canSave = (tab == 0) || (tab == 1 && openFolder != null)
+    fun forRoute(r: String?): List<ItemEntity> = when (r) {
+        "cat:files" -> home.filter { it.kind == "FILE" || it.kind == "DOCUMENT" || it.kind == "VIDEO" }
+        "cat:photos" -> home.filter { it.kind == "IMAGE" }
+        "cat:links" -> home.filter { it.kind == "LINK" }
+        "cat:texts" -> home.filter { it.kind == "TEXT" }
+        "zone:c" -> home.filter { it.sourceDevice == "phone" }
+        "zone:d" -> home.filter { it.sourceDevice == "pc" }
+        "zone:all" -> home
+        "favs" -> favs
+        else -> emptyList()
+    }
+    val routeTitle = when (route) {
+        "cat:files" -> R.string.cat_files; "cat:photos" -> R.string.cat_photos; "cat:links" -> R.string.cat_links; "cat:texts" -> R.string.cat_texts
+        "zone:c" -> R.string.zone_phone; "zone:d" -> R.string.zone_pc; "zone:all" -> R.string.zone_shared
+        "favs" -> R.string.nav_favorites; else -> R.string.tool_queue
+    }
+    val countOf = { r: String ->
+        val n = forRoute(r).size
+        if (n == 0) ctx.getString(R.string.count_none) else ctx.getString(R.string.count_items, n)
+    }
+    BackHandler(enabled = route != null || showTrash || openFolder != null) {
+        when { showTrash -> showTrash = false; route != null -> route = null; else -> vm.openFolder.value = null }
+    }
+    val canSave = !showTrash && route != "queue" && route != "favs" && ((tab == 0) || (tab == 1 && openFolder != null))
 
     Scaffold(
         containerColor = TM.Background,
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
             NavigationBar(containerColor = TM.Surface) {
-                listOf(
-                    Triple(R.string.nav_home, Icons.Filled.Home, 0), Triple(R.string.nav_folders, Icons.Filled.List, 1),
-                    Triple(R.string.nav_favorites, Icons.Filled.Star, 2), Triple(R.string.nav_more, Icons.Filled.Menu, 3),
-                ).forEach { (l, ic, i) ->
-                    NavigationBarItem(tab == i, { tab = i; showTrash = false }, { Icon(ic, null) }, label = { Text(stringResource(l)) })
+                listOf(Triple(R.string.nav_home, Icons.Filled.Home, 0), Triple(R.string.nav_folders, Icons.Filled.Folder, 1), Triple(R.string.nav_more, Icons.Filled.MoreHoriz, 2)).forEach { (l, ic, i) ->
+                    NavigationBarItem(tab == i, { tab = i; showTrash = false; route = null }, { Icon(ic, null) }, label = { Text(stringResource(l)) })
                 }
             }
         },
         floatingActionButton = {
-            if (canSave && !showTrash) ExtendedFloatingActionButton({ dlg = Dlg.Choice }, containerColor = TM.Primary, contentColor = androidx.compose.ui.graphics.Color.White) {
+            if (canSave) ExtendedFloatingActionButton({ dlg = Dlg.Choice }, containerColor = TM.Primary, contentColor = androidx.compose.ui.graphics.Color.White) {
                 Icon(Icons.Filled.Add, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.save))
             }
         },
@@ -97,15 +119,26 @@ fun MainScreen(vm: MainViewModel) {
         Column(Modifier.padding(pad).fillMaxSize()) {
             when {
                 showTrash -> TrashScreen(trash, { showTrash = false }, { vm.restore(it) }, { dlg = Dlg.Forever(it) })
+                route != null -> {
+                    Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton({ route = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                        Text(stringResource(routeTitle), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        SortButton(sort) { vm.sort.value = it }
+                    }
+                    val empty = when (route) { "zone:d" -> R.string.zone_pc_empty; "favs" -> R.string.favorites_empty; "queue" -> R.string.queue_empty; else -> R.string.folder_items_empty }
+                    ItemList(forRoute(route), empty, acts, Modifier.weight(1f))
+                }
                 tab == 0 -> {
                     Row(Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Cloud, null, tint = TM.Primary, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         StatusChip(TmStatus.Offline) // no pairing layer yet (Phase 4): state is truthful
                     }
                     OutlinedTextField(query, { vm.query.value = it }, singleLine = true, placeholder = { Text(stringResource(R.string.search_hint)) },
                         leadingIcon = { Icon(Icons.Filled.Search, null) }, modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp))
-                    FilterRow(kind, { vm.kind.value = it }, sort, { vm.sort.value = it })
-                    ItemList(home, if (query.isBlank() && kind == null) R.string.items_empty else R.string.no_results, acts, Modifier.weight(1f))
+                    if (query.isBlank()) Dashboard(countOf, { route = it }, { showTrash = true }, { tab = 2 }, { help = true })
+                    else ItemList(home, R.string.no_results, acts, Modifier.weight(1f))
                 }
                 tab == 1 && openFolder == null -> FoldersScreen(folders, { vm.openFolder.value = it }, { dlg = Dlg.NewFolder }, { id, n -> dlg = Dlg.RenameFolder(id, n) })
                 tab == 1 -> {
@@ -116,11 +149,13 @@ fun MainScreen(vm: MainViewModel) {
                     }
                     ItemList(inFolder, R.string.folder_items_empty, acts, Modifier.weight(1f))
                 }
-                tab == 2 -> ItemList(favs, R.string.favorites_empty, acts, Modifier.weight(1f))
                 else -> MoreScreen(Formatter.formatShortFileSize(ctx, total)) { showTrash = true }
             }
         }
     }
+
+    if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(stringResource(R.string.help_title)) },
+        text = { Text(stringResource(R.string.help_body)) }, confirmButton = { TextButton({ help = false }) { Text(stringResource(R.string.close)) } })
 
     when (val d = dlg) {
         null -> {}
@@ -138,19 +173,13 @@ fun MainScreen(vm: MainViewModel) {
 }
 
 @Composable
-private fun FilterRow(kind: ItemKind?, onKind: (ItemKind?) -> Unit, sort: SortBy, onSort: (SortBy) -> Unit) {
+private fun SortButton(sort: SortBy, onSort: (SortBy) -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
-        LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            item { FilterChip(kind == null, { onKind(null) }, { Text(stringResource(R.string.filter_all)) }) }
-            items(ItemKind.entries) { k -> FilterChip(kind == k, { onKind(if (kind == k) null else k) }, { Text(stringResource(kindLabel(k.name))) }) }
-        }
-        Box {
-            TextButton({ menu = true }) { Text(stringResource(R.string.sort)) }
-            DropdownMenu(menu, { menu = false }) {
-                SortBy.entries.forEach { s ->
-                    DropdownMenuItem({ Text((if (s == sort) "✓ " else "") + stringResource(sortLabel(s))) }, { onSort(s); menu = false })
-                }
+    Box {
+        TextButton({ menu = true }) { Text(stringResource(R.string.sort)) }
+        DropdownMenu(menu, { menu = false }) {
+            SortBy.entries.forEach { s ->
+                DropdownMenuItem({ Text((if (s == sort) "✓ " else "") + stringResource(sortLabel(s))) }, { onSort(s); menu = false })
             }
         }
     }
