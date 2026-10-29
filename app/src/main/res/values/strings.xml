@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TwinMemory</string>
+    <string name="tagline">Everything you save, within reach.</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_transferring">Transferring</string>
+    <string name="status_waiting">Waiting for connection</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_offline">Not connected</string>
+    <string name="empty_title">No items yet</string>
+    <string name="empty_body">Saving items and pairing with your computer arrive in the next releases.</string>
+</resources>

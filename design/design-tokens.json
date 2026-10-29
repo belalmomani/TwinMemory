@@ -1,0 +1,8 @@
+{
+  "color": {"primary":"#2F6FED","primaryDark":"#1E4FBF","primarySoft":"#E6EEFF","background":"#F4F7FB","surface":"#FFFFFF","outline":"#DDE5F0","text":"#1B2638","muted":"#55657D",
+    "success":{"bg":"#E3F4EC","fg":"#14694A"},"warning":{"bg":"#FFF1D6","fg":"#8A5300"},"error":{"bg":"#FBE4E4","fg":"#9B2C2C"},"idle":{"bg":"#EEF3FA","fg":"#55657D"}},
+  "icon": {"gradient":["#5B93FF","#1E4FBF"]},
+  "radius": {"small":10,"medium":14,"large":16},
+  "font": {"family":"IBM Plex Sans Arabic","fallback":"system sans-serif","status":"not bundled yet"},
+  "mode": "light-only"
+}

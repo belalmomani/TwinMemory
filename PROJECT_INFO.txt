@@ -1,0 +1,9 @@
+اسم التطبيق بالعربية: الذاكرة المشتركة
+اسم التطبيق بالإنجليزية: TwinMemory
+اسم الحزمة: com.belalmomani.twinmemory
+رقم الإصدار: 1.0.0
+Version Code: 1
+تاريخ ووقت إنشاء هذه الحزمة: 2026-10-29 02:32:42 UTC (UTC+0000)
+المرحلة: 2 (الأساس والهوية البصرية) — لم يُبنَ APK بعد
+المشروع: TwinMemory
+مستودع GitHub: https://github.com/belalmomani/TwinMemory.git

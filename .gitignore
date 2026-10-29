@@ -1,0 +1,13 @@
+*.iml
+.gradle/
+build/
+local.properties
+.idea/
+captures/
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+# Firebase client config: keep out of the public repo; supply locally or via CI secret
+app/google-services.json

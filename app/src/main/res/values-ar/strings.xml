@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">الذاكرة المشتركة</string>
+    <string name="tagline">كل ما تحفظه، يبقى في متناولك.</string>
+    <string name="status_connected">متصل</string>
+    <string name="status_transferring">جارٍ النقل</string>
+    <string name="status_waiting">بانتظار الاتصال</string>
+    <string name="status_failed">فشل</string>
+    <string name="status_offline">غير متصل</string>
+    <string name="empty_title">لا توجد عناصر بعد</string>
+    <string name="empty_body">حفظ العناصر والربط بالكمبيوتر يصلان في الإصدارات القادمة.</string>
+</resources>
