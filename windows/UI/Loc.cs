@@ -1,0 +1,50 @@
+using System.Globalization;
+using System.Windows.Markup;
+
+namespace TwinMemory;
+
+/// <summary>Arabic text is the key; English is used when the Windows UI language is not Arabic.</summary>
+public static class S
+{
+    public static readonly bool Ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+
+    static readonly Dictionary<string, string> En = new()
+    {
+        ["ملف"] = "File", ["تحرير"] = "Edit", ["عرض"] = "View", ["أدوات"] = "Tools", ["مساعدة"] = "Help",
+        ["مجلد جديد"] = "New folder", ["حفظ نص أو رابط"] = "Save text or link", ["استيراد ملف…"] = "Import file…", ["إغلاق"] = "Close",
+        ["تحديد الكل"] = "Select all", ["نسخ"] = "Copy", ["لصق"] = "Paste", ["إعادة تسمية"] = "Rename", ["حذف"] = "Delete",
+        ["المفضلة"] = "Favorites", ["نقل إلى مجلد…"] = "Move to folder…", ["أيقونات"] = "Icons", ["تفاصيل"] = "Details",
+        ["ترتيب حسب الاسم"] = "Sort by name", ["ترتيب حسب التاريخ"] = "Sort by date", ["ترتيب حسب الحجم"] = "Sort by size", ["ترتيب حسب النوع"] = "Sort by type",
+        ["تحديث"] = "Refresh", ["اتصال الهاتف (المرحلة 4)"] = "Phone connection (phase 4)", ["سلة المحذوفات"] = "Trash",
+        ["دليل الاستخدام"] = "User guide", ["حول التطبيق"] = "About", ["+ جديد ▾"] = "+ New ▾", ["عرض ▾"] = "View ▾",
+        ["فتح"] = "Open", ["خصائص"] = "Properties", ["استرجاع"] = "Restore", ["حذف نهائي"] = "Delete permanently",
+        ["ابحث في TwinMemory…"] = "Search TwinMemory…", ["النصوص"] = "Texts", ["الروابط"] = "Links", ["الصور"] = "Photos", ["الملفات"] = "Files",
+        ["هاتف C"] = "Phone C", ["كمبيوتر D"] = "Computer D", ["الهاتف: غير مرتبط"] = "Phone: not paired",
+        ["عناصر"] = "items", ["تم تحديد"] = "selected", ["الاسم"] = "Name", ["النوع"] = "Type", ["المصدر"] = "Source", ["الحجم"] = "Size", ["التاريخ"] = "Date",
+        ["الكمبيوتر"] = "Computer", ["الهاتف"] = "Phone", ["نص"] = "Text", ["رابط"] = "Link", ["صورة"] = "Image", ["فيديو"] = "Video", ["مستند"] = "Document",
+        ["بدون مجلد"] = "No folder", ["اسم المجلد"] = "Folder name", ["النص أو الرابط"] = "Text or link", ["الاسم الجديد"] = "New name",
+        ["حفظ"] = "Save", ["إلغاء"] = "Cancel", ["نقل إلى"] = "Move to", ["لا توجد عناصر بعد. اضغط + جديد، أو الصق (Ctrl+V)، أو اسحب ملفات إلى النافذة."] = "No items yet. Click + New, paste (Ctrl+V), or drag files into the window.",
+        ["لا توجد عناصر هنا."] = "Nothing here.", ["تم الحفظ"] = "Saved", ["تم الحفظ — يشبه عنصرًا محفوظًا مسبقًا"] = "Saved — similar to an existing item",
+        ["تعذّر الحفظ. عناصرك السابقة سليمة."] = "Could not save. Your existing items are safe.", ["نُقل إلى سلة المحذوفات"] = "Moved to trash",
+        ["سيُحذف العنصر وملفه نهائيًا من هذا الجهاز ولا يمكن التراجع. متابعة؟"] = "The item and its file will be permanently deleted from this device. Continue?",
+        ["هذا النوع من الملفات قد ينفّذ برنامجًا. هل تريد فتحه فعلًا؟"] = "This file type can run a program. Open it anyway?",
+        ["لا يوجد ما يمكن لصقه (نص أو ملفات)."] = "Nothing to paste (text or files).", ["المجلدات غير مدعومة بعد؛ اسحب ملفات فقط."] = "Folders are not supported yet; drag files only.",
+        ["لا يمكن فتح هذا العنصر."] = "This item cannot be opened.", ["الحالة"] = "Status",
+        ["الرابط/النص"] = "Link/Text", ["المكان"] = "Location", ["تاريخ الحفظ"] = "Saved",
+        ["• + جديد ← حفظ نص/رابط أو استيراد ملف.\n• Ctrl+V للصق ما نسخته (نص أو ملفات)، أو اسحب الملفات إلى النافذة.\n• زر الفأرة الأيمن على عنصر: نسخ، إعادة تسمية، نقل، مفضلة.\n• المحذوفات تبقى في السلة حتى تحذفها نهائيًا.\n• ربط الهاتف والنقل بين الجهازين: المرحلة 4."]
+            = "• + New → save text/link or import a file.\n• Ctrl+V pastes what you copied (text or files), or drag files into the window.\n• Right-click an item: copy, rename, move, favorite.\n• Deleted items stay in Trash until you delete them permanently.\n• Phone pairing and transfer: phase 4.",
+        ["بياناتك محفوظة على هذا الكمبيوتر فقط ولا تُرفع إلى أي خدمة سحابية."] = "Your data is stored on this computer only and is not uploaded to any cloud service.",
+        ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
+    };
+
+    public static string T(string ar) => Ar ? ar : (En.TryGetValue(ar, out var v) ? v : ar);
+}
+
+[MarkupExtensionReturnType(typeof(string))]
+public class TExtension : MarkupExtension
+{
+    public string Key { get; set; } = "";
+    public TExtension() { }
+    public TExtension(string key) { Key = key; }
+    public override object ProvideValue(IServiceProvider serviceProvider) => S.T(Key);
+}

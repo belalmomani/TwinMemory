@@ -11,3 +11,7 @@ captures/
 keystore.properties
 # Firebase client config: keep out of the public repo; supply locally or via CI secret
 app/google-services.json
+bin/
+obj/
+publish/
+*.user

@@ -1,0 +1,152 @@
+<Window x:Class="TwinMemory.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:TwinMemory"
+        Title="TwinMemory" Width="1100" Height="720" MinWidth="820" MinHeight="480"
+        Background="{StaticResource Bg}" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown"
+        FontSize="14" FontFamily="Segoe UI, Tahoma">
+  <Window.Resources>
+    <ContextMenu x:Key="NewMenu">
+      <MenuItem Header="{l:T 'حفظ نص أو رابط'}" Tag="newtext" Click="Cmd"/>
+      <MenuItem Header="{l:T 'استيراد ملف…'}" Tag="import" Click="Cmd"/>
+      <MenuItem Header="{l:T 'مجلد جديد'}" Tag="newfolder" Click="Cmd"/>
+    </ContextMenu>
+    <ContextMenu x:Key="ViewMenu">
+      <MenuItem Header="{l:T 'أيقونات'}" Tag="view:icons" Click="Cmd"/>
+      <MenuItem Header="{l:T 'تفاصيل'}" Tag="view:details" Click="Cmd"/>
+      <Separator/>
+      <MenuItem Header="{l:T 'ترتيب حسب الاسم'}" Tag="sort:name" Click="Cmd"/>
+      <MenuItem Header="{l:T 'ترتيب حسب التاريخ'}" Tag="sort:date" Click="Cmd"/>
+      <MenuItem Header="{l:T 'ترتيب حسب الحجم'}" Tag="sort:size" Click="Cmd"/>
+      <MenuItem Header="{l:T 'ترتيب حسب النوع'}" Tag="sort:type" Click="Cmd"/>
+    </ContextMenu>
+    <ContextMenu x:Key="ItemMenu" Opened="ItemMenu_Opened">
+      <MenuItem Header="{l:T 'فتح'}" Tag="open" Click="Cmd"/>
+      <MenuItem Header="{l:T 'نسخ'}" Tag="copy" Click="Cmd"/>
+      <MenuItem Header="{l:T 'إعادة تسمية'}" Tag="rename" Click="Cmd"/>
+      <MenuItem Header="{l:T 'المفضلة'}" Tag="fav" Click="Cmd"/>
+      <MenuItem Header="{l:T 'نقل إلى مجلد…'}" Tag="move" Click="Cmd"/>
+      <MenuItem Header="{l:T 'استرجاع'}" Tag="restore" Click="Cmd"/>
+      <Separator/>
+      <MenuItem Header="{l:T 'حذف'}" Tag="delete" Click="Cmd"/>
+      <MenuItem Header="{l:T 'حذف نهائي'}" Tag="purge" Click="Cmd"/>
+      <Separator/>
+      <MenuItem Header="{l:T 'خصائص'}" Tag="props" Click="Cmd"/>
+    </ContextMenu>
+    <DataTemplate x:Key="IconTpl">
+      <Border Width="132" Margin="6" Padding="6" Background="Transparent">
+        <StackPanel>
+          <TextBlock Text="{Binding Glyph}" FontSize="40" HorizontalAlignment="Center" FontFamily="Segoe UI Emoji"/>
+          <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="40" TextAlignment="Center" Margin="0,6,0,0"/>
+          <TextBlock TextAlignment="Center" Foreground="{StaticResource Muted}" FontSize="12">
+            <Run Text="{Binding SizeText, Mode=OneWay}"/><Run Text=" "/><Run Text="{Binding Star, Mode=OneWay}"/>
+          </TextBlock>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <Menu Grid.Row="0" Background="White" Padding="6,2">
+      <MenuItem Header="{l:T 'ملف'}">
+        <MenuItem Header="{l:T 'مجلد جديد'}" InputGestureText="Ctrl+Shift+N" Tag="newfolder" Click="Cmd"/>
+        <MenuItem Header="{l:T 'حفظ نص أو رابط'}" Tag="newtext" Click="Cmd"/>
+        <MenuItem Header="{l:T 'استيراد ملف…'}" Tag="import" Click="Cmd"/>
+        <Separator/>
+        <MenuItem Header="{l:T 'إغلاق'}" Tag="close" Click="Cmd"/>
+      </MenuItem>
+      <MenuItem Header="{l:T 'تحرير'}">
+        <MenuItem Header="{l:T 'تحديد الكل'}" InputGestureText="Ctrl+A" Tag="selall" Click="Cmd"/>
+        <MenuItem Header="{l:T 'نسخ'}" InputGestureText="Ctrl+C" Tag="copy" Click="Cmd"/>
+        <MenuItem Header="{l:T 'لصق'}" InputGestureText="Ctrl+V" Tag="paste" Click="Cmd"/>
+        <MenuItem Header="{l:T 'إعادة تسمية'}" InputGestureText="F2" Tag="rename" Click="Cmd"/>
+        <MenuItem Header="{l:T 'حذف'}" InputGestureText="Delete" Tag="delete" Click="Cmd"/>
+        <MenuItem Header="{l:T 'المفضلة'}" Tag="fav" Click="Cmd"/>
+        <MenuItem Header="{l:T 'نقل إلى مجلد…'}" Tag="move" Click="Cmd"/>
+      </MenuItem>
+      <MenuItem Header="{l:T 'عرض'}">
+        <MenuItem Header="{l:T 'أيقونات'}" Tag="view:icons" Click="Cmd"/>
+        <MenuItem Header="{l:T 'تفاصيل'}" Tag="view:details" Click="Cmd"/>
+        <Separator/>
+        <MenuItem Header="{l:T 'ترتيب حسب الاسم'}" Tag="sort:name" Click="Cmd"/>
+        <MenuItem Header="{l:T 'ترتيب حسب التاريخ'}" Tag="sort:date" Click="Cmd"/>
+        <MenuItem Header="{l:T 'ترتيب حسب الحجم'}" Tag="sort:size" Click="Cmd"/>
+        <MenuItem Header="{l:T 'ترتيب حسب النوع'}" Tag="sort:type" Click="Cmd"/>
+        <Separator/>
+        <MenuItem Header="{l:T 'تحديث'}" Tag="refresh" Click="Cmd"/>
+      </MenuItem>
+      <MenuItem Header="{l:T 'أدوات'}">
+        <MenuItem Header="{l:T 'اتصال الهاتف (المرحلة 4)'}" IsEnabled="False"/>
+        <MenuItem Header="{l:T 'سلة المحذوفات'}" Tag="trashview" Click="Cmd"/>
+      </MenuItem>
+      <MenuItem Header="{l:T 'مساعدة'}">
+        <MenuItem Header="{l:T 'دليل الاستخدام'}" Tag="help" Click="Cmd"/>
+        <MenuItem Header="{l:T 'حول التطبيق'}" Tag="about" Click="Cmd"/>
+      </MenuItem>
+    </Menu>
+
+    <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,1" Padding="10,6">
+      <DockPanel>
+        <Grid DockPanel.Dock="Left" Width="260">
+          <TextBox x:Name="Search" Padding="8,5" TextChanged="Search_Changed" BorderBrush="{StaticResource Line}"/>
+          <TextBlock x:Name="SearchHint" Text="{l:T 'ابحث في TwinMemory…'}" Foreground="{StaticResource Muted}" Margin="10,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+        </Grid>
+        <StackPanel Orientation="Horizontal">
+          <Button Style="{StaticResource Tb}" Content="{l:T '+ جديد ▾'}" Foreground="{StaticResource Primary}" FontWeight="SemiBold" Click="NewBtn_Click"/>
+          <Button Style="{StaticResource Tb}" Content="{l:T 'نسخ'}" Tag="copy" Click="Cmd"/>
+          <Button Style="{StaticResource Tb}" Content="{l:T 'لصق'}" Tag="paste" Click="Cmd"/>
+          <Button Style="{StaticResource Tb}" Content="{l:T 'حذف'}" Tag="delete" Click="Cmd"/>
+          <Button Style="{StaticResource Tb}" Content="{l:T 'عرض ▾'}" Click="ViewBtn_Click"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Margin="12,10,12,0" Padding="12,8">
+      <TextBlock x:Name="Crumb" Text="TwinMemory"/>
+    </Border>
+
+    <Grid Grid.Row="3" Margin="0,10,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1,0,1,0">
+        <ListBox x:Name="Nav" BorderThickness="0" SelectionChanged="Nav_Changed">
+          <ListBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding Title}" Padding="{Binding Pad}"/></DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+      <Grid Grid.Column="1">
+        <ListView x:Name="IconList" SelectionMode="Extended" ItemTemplate="{StaticResource IconTpl}" ContextMenu="{StaticResource ItemMenu}"
+                  MouseDoubleClick="List_DoubleClick" SelectionChanged="List_SelectionChanged" Background="Transparent" BorderThickness="0"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListView.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListView.ItemsPanel>
+        </ListView>
+        <ListView x:Name="DetailsList" SelectionMode="Extended" Visibility="Collapsed" ContextMenu="{StaticResource ItemMenu}"
+                  MouseDoubleClick="List_DoubleClick" SelectionChanged="List_SelectionChanged" Background="Transparent" BorderThickness="0">
+          <ListView.View>
+            <GridView>
+              <GridViewColumn Header="★" Width="36" DisplayMemberBinding="{Binding Star}"/>
+              <GridViewColumn Header="{l:T 'الاسم'}" Width="320" DisplayMemberBinding="{Binding Title}"/>
+              <GridViewColumn Header="{l:T 'النوع'}" Width="90" DisplayMemberBinding="{Binding KindLabel}"/>
+              <GridViewColumn Header="{l:T 'المصدر'}" Width="100" DisplayMemberBinding="{Binding SourceLabel}"/>
+              <GridViewColumn Header="{l:T 'الحجم'}" Width="90" DisplayMemberBinding="{Binding SizeText}"/>
+              <GridViewColumn Header="{l:T 'التاريخ'}" Width="160" DisplayMemberBinding="{Binding DateText}"/>
+            </GridView>
+          </ListView.View>
+        </ListView>
+        <TextBlock x:Name="Empty" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed"/>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="14,6">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Left" Text="{l:T 'الهاتف: غير مرتبط'}" Foreground="{StaticResource Muted}"/>
+        <TextBlock x:Name="CountText" DockPanel.Dock="Right" Margin="0,0,24,0"/>
+        <TextBlock x:Name="MsgText" Foreground="{StaticResource Primary}" Margin="24,0"/>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>
