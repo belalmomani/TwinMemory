@@ -4,7 +4,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
-    id("com.google.gms.google-services")
 }
 
 // Signing: read from keystore.properties (git-ignored) or environment. Never commit secrets.
@@ -13,6 +12,9 @@ val ksProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 fun sign(key: String, env: String): String? = ksProps.getProperty(key) ?: System.getenv(env)
+
+// Firebase plugin only when the (git-ignored) config file is present, so builds do not fail without it.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
 
 android {
     namespace = "com.belalmomani.twinmemory"

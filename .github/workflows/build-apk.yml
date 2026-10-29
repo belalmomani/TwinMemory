@@ -1,0 +1,50 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KS_B64: ${{ secrets.TM_KEYSTORE_BASE64 }}
+      GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore google-services.json (optional secret)
+        if: env.GS_B64 != ''
+        run: echo "$GS_B64" | base64 -d > app/google-services.json
+
+      - name: Unit tests (do not block the APK)
+        continue-on-error: true
+        run: gradle :app:testDebugUnitTest --no-daemon
+
+      - name: Build signed release APK
+        if: env.KS_B64 != ''
+        env:
+          TM_KEYSTORE_PASSWORD: ${{ secrets.TM_KEYSTORE_PASSWORD }}
+          TM_KEY_ALIAS: ${{ secrets.TM_KEY_ALIAS }}
+          TM_KEY_PASSWORD: ${{ secrets.TM_KEY_PASSWORD }}
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/tm.jks"
+          export TM_KEYSTORE_PATH="$RUNNER_TEMP/tm.jks"
+          gradle :app:assembleRelease --no-daemon
+
+      - name: Build debug APK (no signing secrets set)
+        if: env.KS_B64 == ''
+        run: |
+          echo "::warning::No TM_KEYSTORE_BASE64 secret: building a DEBUG APK. Its signature is not your release signature and may not update over a release install."
+          gradle :app:assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TwinMemory-apk
+          path: app/build/outputs/apk/**/*.apk
