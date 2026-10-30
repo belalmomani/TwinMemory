@@ -65,6 +65,12 @@ public static class S
         ["الاتجاه"] = "Direction",
         ["من الهاتف"] = "From phone",
         ["إلى الهاتف"] = "To phone",
+        ["تعذّرت مزامنة المجلد"] = "Folder sync failed",
+        ["تمت مزامنة المجلد"] = "Folder synced",
+        ["تم إيقاف حذف عدد كبير من الملفات احتياطًا — راجع مجلد TwinMemory"] = "Stopped a large deletion as a precaution — check the TwinMemory folder",
+        ["فتح مجلد TwinMemory في المستكشف"] = "Open TwinMemory folder in Explorer",
+        ["مزامنة المجلد الآن"] = "Sync folder now",
+        ["مجلد المزامنة"] = "Sync folder",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using TwinMemory.Core;
 using TwinMemory.Net;
+using TwinMemory.Sync;
 
 namespace TwinMemory;
 
@@ -11,6 +12,7 @@ public partial class App : Application
     public static Database Db = null!;
     public static FileStore Store = null!;
     public static TwinServer Server = null!;
+    public static SyncEngine Mirror = null!;
     public static string DataDir = "";
     public static string? ServerError;
 
@@ -32,7 +34,10 @@ public partial class App : Application
             Db = new Database(Path.Combine(DataDir, "twinmemory.db"));
             Store = new FileStore(Path.Combine(DataDir, "items"));
             Server = new TwinServer(Db, Store, DataDir);
+            Mirror = new SyncEngine(Db, Store, DataDir);
+            Server.DataChanged += () => Mirror.Trigger();
             new MainWindow().Show();
+            Mirror.Start();
             _ = Task.Run(async () => { try { await Server.StartAsync(); } catch (Exception ex) { ServerError = ex.Message; } });
         }
         catch (Exception ex)

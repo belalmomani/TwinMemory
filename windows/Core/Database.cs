@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
  file_name TEXT, mime TEXT, size INTEGER NOT NULL, sha256 TEXT, state TEXT NOT NULL, item_id TEXT, error TEXT, started INTEGER NOT NULL, finished INTEGER);");
             Exec(c, "PRAGMA user_version = 2");
         }
+        if (v < 3)
+        {
+            Exec(c, @"CREATE TABLE IF NOT EXISTS sync_map(item_id TEXT PRIMARY KEY, rel_path TEXT NOT NULL UNIQUE COLLATE NOCASE, size INTEGER NOT NULL,
+ mtime INTEGER NOT NULL, sha256 TEXT NOT NULL, title TEXT NOT NULL, folder_id TEXT);");
+            Exec(c, "PRAGMA user_version = 3");
+        }
     }
 
     const string Cols = "id,kind,title,text,file_name,mime,size,sha256,rel_path,source,folder_id,favorite,created,updated,trashed";
@@ -225,5 +231,36 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
             Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
             Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14),
         };
+    }
+
+    // ---- Explorer folder mirror ----
+    public List<SyncEntry> GetMaps()
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT item_id,rel_path,size,mtime,sha256,title,folder_id FROM sync_map";
+        var l = new List<SyncEntry>(); using var r = cmd.ExecuteReader();
+        while (r.Read()) l.Add(new SyncEntry(r.GetString(0), r.GetString(1), r.GetInt64(2), r.GetInt64(3), r.GetString(4), r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6)));
+        return l;
+    }
+
+    public void UpsertMap(SyncEntry m)
+    {
+        using var c = Open();
+        Exec(c, "DELETE FROM sync_map WHERE rel_path=$p AND item_id<>$i", ("$p", m.RelPath), ("$i", m.ItemId));
+        Exec(c, @"INSERT INTO sync_map(item_id,rel_path,size,mtime,sha256,title,folder_id) VALUES($i,$p,$s,$m,$h,$t,$f)
+ ON CONFLICT(item_id) DO UPDATE SET rel_path=$p, size=$s, mtime=$m, sha256=$h, title=$t, folder_id=$f",
+            ("$i", m.ItemId), ("$p", m.RelPath), ("$s", m.Size), ("$m", m.MTime), ("$h", m.Sha256), ("$t", m.Title), ("$f", m.FolderId));
+    }
+
+    public void DeleteMap(string itemId) { using var c = Open(); Exec(c, "DELETE FROM sync_map WHERE item_id=$i", ("$i", itemId)); }
+    public void UpdateText(string id, string text, long size) { using var c = Open(); Exec(c, "UPDATE items SET text=$t, size=$s, updated=$n WHERE id=$id", ("$t", text), ("$s", size), ("$n", Now()), ("$id", id)); }
+    public void UpdateFile(string id, long size, string sha) { using var c = Open(); Exec(c, "UPDATE items SET size=$s, sha256=$h, updated=$n WHERE id=$id", ("$s", size), ("$h", sha), ("$n", Now()), ("$id", id)); }
+
+    public string CreateFolderId(string name)
+    {
+        var id = Guid.NewGuid().ToString();
+        using var c = Open();
+        Exec(c, "INSERT INTO folders(id,name,created) VALUES($id,$n,$c)", ("$id", id), ("$n", name), ("$c", Now()));
+        return id;
     }
 }

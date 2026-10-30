@@ -71,3 +71,5 @@ public class Transfer
     public string SizeText => Size <= 0 ? "" : Size < 1048576 ? $"{Size / 1024.0:0.#} KB" : $"{Size / 1048576.0:0.#} MB";
     public string DateText => DateTimeOffset.FromUnixTimeMilliseconds(Started).LocalDateTime.ToString("g");
 }
+
+public record SyncEntry(string ItemId, string RelPath, long Size, long MTime, string Sha256, string Title, string? FolderId);

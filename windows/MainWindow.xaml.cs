@@ -47,6 +47,8 @@ public partial class MainWindow : Window
         t.Tick += (_, _) => UpdatePhone();
         t.Start();
         UpdatePhone();
+        App.Mirror.Changed += () => Dispatcher.BeginInvoke(new Action(Refresh));
+        App.Mirror.Message += m => Dispatcher.BeginInvoke(new Action(() => Status(m)));
     }
 
     void UpdatePhone()
@@ -123,6 +125,7 @@ public partial class MainWindow : Window
         Empty.Visibility = _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         Crumb.Text = "TwinMemory ‹ " + ((Nav.SelectedItem as NavEntry)?.Title ?? "");
         UpdateStatus();
+        App.Mirror?.Trigger(); // keep the Explorer folder in step with what the app shows
     }
 
     void UpdateStatus()
@@ -336,6 +339,10 @@ public partial class MainWindow : Window
             case "close": Close(); break;
             case "pair": new PairWindow(this).Show(); break;
             case "transfers": new TransfersWindow(this).Show(); break;
+            case "openfolder":
+                try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{App.Mirror.Root}\"") { UseShellExecute = true }); } catch { Status(App.Mirror.Root); }
+                break;
+            case "syncnow": App.Mirror.Trigger(100); break;
             case "lang:ar": case "lang:en": case "lang:auto":
                 if (Dlg.Confirm(this, S.T("ستُعاد تشغيل التطبيق لتطبيق اللغة. متابعة؟")))
                 {
@@ -346,7 +353,7 @@ public partial class MainWindow : Window
                 break;
             case "help": Dlg.Info(this, S.T("• + جديد ← حفظ نص/رابط أو استيراد ملف.\n• Ctrl+V للصق ما نسخته (نص أو ملفات)، أو اسحب الملفات إلى النافذة.\n• زر الفأرة الأيمن على عنصر: نسخ، إعادة تسمية، نقل، مفضلة.\n• المحذوفات تبقى في السلة حتى تحذفها نهائيًا.\n• ربط الهاتف والنقل بين الجهازين: المرحلة 4.")); break;
             case "about":
-                Dlg.Info(this, $"TwinMemory — الذاكرة المشتركة\n{S.T("الإصدار")}: {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}\n{S.T("مجلد البيانات")}: {App.DataDir}\n\n{S.T("بياناتك محفوظة على هذا الكمبيوتر فقط ولا تُرفع إلى أي خدمة سحابية.")}");
+                Dlg.Info(this, $"TwinMemory — الذاكرة المشتركة\n{S.T("الإصدار")}: {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}\n{S.T("مجلد البيانات")}: {App.DataDir}\n{S.T("مجلد المزامنة")}: {App.Mirror.Root}\n\n{S.T("بياناتك محفوظة على هذا الكمبيوتر فقط ولا تُرفع إلى أي خدمة سحابية.")}");
                 break;
         }
     }

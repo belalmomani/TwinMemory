@@ -46,6 +46,29 @@ public class FileStore
         return new Stored(id + "/" + safe, size, sha256);
     }
 
+    /// <summary>Replaces an item's stored file via a temp file, so a failure leaves the previous content intact.</summary>
+    public Stored Replace(string rel, Stream input)
+    {
+        var dest = Path.GetFullPath(Path.Combine(_root, rel));
+        if (!dest.StartsWith(_root + Path.DirectorySeparatorChar)) throw new IOException("bad path");
+        var tmp = dest + ".tmp";
+        try
+        {
+            using var sha = SHA256.Create();
+            long total = 0;
+            using (var os = File.Create(tmp))
+            {
+                var buf = new byte[64 * 1024];
+                int n;
+                while ((n = input.Read(buf, 0, buf.Length)) > 0) { os.Write(buf, 0, n); sha.TransformBlock(buf, 0, n, null, 0); total += n; }
+            }
+            sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            File.Move(tmp, dest, true);
+            return new Stored(rel, total, Convert.ToHexString(sha.Hash!).ToLowerInvariant());
+        }
+        catch { try { File.Delete(tmp); } catch { } throw; }
+    }
+
     public string? PathFor(string? rel)
     {
         if (rel == null) return null;
