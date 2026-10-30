@@ -16,6 +16,7 @@ import com.belalmomani.twinmemory.domain.Classify
 import com.belalmomani.twinmemory.domain.ItemKind
 import com.belalmomani.twinmemory.domain.SortBy
 import com.belalmomani.twinmemory.net.Discovery
+import com.belalmomani.twinmemory.transfer.InboxSync
 import com.belalmomani.twinmemory.net.Pairing
 import com.belalmomani.twinmemory.net.PcClient
 import kotlinx.coroutines.Dispatchers
@@ -80,7 +81,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: PcClient.HttpError) {
             if (e.code == 401 || e.code == 403) { tapp.pairing.clear(); msgs.tryEmit(R.string.msg_unpaired_remote); Conn.UNPAIRED } else Conn.OFFLINE
         } catch (e: Exception) { Conn.OFFLINE }
-        if (conn.value == Conn.ONLINE) tapp.transfers.kickIfIdleWithWork()
+        if (conn.value == Conn.ONLINE) {
+            tapp.transfers.kickIfIdleWithWork()
+            try { if (InboxSync(tapp).run(client(p)) > 0) msgs.tryEmit(R.string.msg_received) } catch (e: Exception) { /* offline or transient: retried on the next cycle */ }
+        }
     }
 
     fun pair(host: String, port: Int, code: String) = viewModelScope.launch(Dispatchers.IO) {

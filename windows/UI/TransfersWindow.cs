@@ -13,10 +13,10 @@ public class TransfersWindow : Window
 
     public TransfersWindow(Window owner)
     {
-        Owner = owner; Title = S.T("قائمة النقل"); Width = 820; Height = 460; FlowDirection = owner.FlowDirection; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Owner = owner; Title = S.T("قائمة النقل"); Width = 900; Height = 460; FlowDirection = owner.FlowDirection; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var g = new GridView();
         void Col(string h, string path, double w) => g.Columns.Add(new GridViewColumn { Header = S.T(h), Width = w, DisplayMemberBinding = new System.Windows.Data.Binding(path) });
-        Col("الاسم", "Title", 240); Col("الحجم", "SizeText", 80); Col("الجهاز", "DeviceName", 110); Col("الحالة", "StateLabel", 230); Col("التاريخ", "DateText", 140);
+        Col("الاسم", "Title", 220); Col("الاتجاه", "DirectionLabel", 90); Col("الحجم", "SizeText", 80); Col("الجهاز", "DeviceName", 110); Col("الحالة", "StateLabel", 230); Col("التاريخ", "DateText", 140);
         _list.View = g;
         var grid = new Grid();
         grid.Children.Add(_list); grid.Children.Add(_empty);

@@ -93,7 +93,7 @@
     <string name="tool_settings">الإعدادات</string>
     <string name="count_none">لا عناصر</string>
     <string name="count_items">%1$d عنصر</string>
-    <string name="zone_pc_empty">يظهر هنا ما يصل من الكمبيوتر بعد ربط الهاتف به (قريبًا).</string>
+    <string name="zone_pc_empty">يظهر هنا ما تُرسله من الكمبيوتر (برنامج الكمبيوتر ← إرسال إلى الهاتف) أثناء فتح التطبيق.</string>
     <string name="queue_empty">لا توجد عمليات نقل. تظهر هنا بعد ربط الهاتف بالكمبيوتر.</string>
     <string name="help_title">مساعدة</string>
     <string name="help_body">• اضغط «حفظ» لحفظ نص أو رابط أو استيراد ملف.
@@ -124,4 +124,5 @@
     <string name="msg_need_pair">اربط الكمبيوتر أولًا (المزيد ← ربط الكمبيوتر)</string>
     <string name="msg_unpaired_remote">ألغى الكمبيوتر الربط</string>
     <string name="none_found">لم يُعثر على كمبيوتر، أدخل العنوان يدويًا</string>
+    <string name="msg_received">وصلت عناصر جديدة من الكمبيوتر</string>
 </resources>

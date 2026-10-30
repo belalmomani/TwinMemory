@@ -26,6 +26,7 @@
       <MenuItem Header="{l:T 'إعادة تسمية'}" Tag="rename" Click="Cmd"/>
       <MenuItem Header="{l:T 'المفضلة'}" Tag="fav" Click="Cmd"/>
       <MenuItem Header="{l:T 'نقل إلى مجلد…'}" Tag="move" Click="Cmd"/>
+      <MenuItem Header="{l:T 'إرسال إلى الهاتف'}" Tag="sendphone" Click="Cmd"/>
       <MenuItem Header="{l:T 'استرجاع'}" Tag="restore" Click="Cmd"/>
       <Separator/>
       <MenuItem Header="{l:T 'حذف'}" Tag="delete" Click="Cmd"/>
@@ -66,6 +67,7 @@
         <MenuItem Header="{l:T 'حذف'}" InputGestureText="Delete" Tag="delete" Click="Cmd"/>
         <MenuItem Header="{l:T 'المفضلة'}" Tag="fav" Click="Cmd"/>
         <MenuItem Header="{l:T 'نقل إلى مجلد…'}" Tag="move" Click="Cmd"/>
+        <MenuItem Header="{l:T 'إرسال إلى الهاتف'}" Tag="sendphone" Click="Cmd"/>
       </MenuItem>
       <MenuItem Header="{l:T 'عرض'}">
         <MenuItem Header="{l:T 'أيقونات'}" Tag="view:icons" Click="Cmd"/>

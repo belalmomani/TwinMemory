@@ -200,4 +200,30 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
 
     public void SetTransferState(string id, string state, string? error) { using var c = Open(); Exec(c, "UPDATE transfers SET state=$s, error=$e, finished=$f WHERE id=$id", ("$s", state), ("$e", error), ("$f", Now()), ("$id", id)); }
     public void FinishTransfer(string id, string itemId) { using var c = Open(); Exec(c, "UPDATE transfers SET state='done', item_id=$i, error=NULL, finished=$f WHERE id=$id", ("$i", itemId), ("$f", Now()), ("$id", id)); }
+
+    // ---- outbox (computer -> phone) lives in the transfers table with direction='out', state='queued' ----
+    public List<Transfer> ListOutbox(string deviceId)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {TCols} FROM transfers t LEFT JOIN devices d ON d.id=t.device_id WHERE t.device_id=$d AND t.direction='out' AND t.state='queued' ORDER BY t.started";
+        cmd.Parameters.AddWithValue("$d", deviceId);
+        var l = new List<Transfer>(); using var r = cmd.ExecuteReader();
+        while (r.Read()) l.Add(ReadTransfer(r));
+        return l;
+    }
+
+    public Item? GetItem(string id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {Cols} FROM items WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        return new Item
+        {
+            Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
+            Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
+            Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14),
+        };
+    }
 }

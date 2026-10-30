@@ -64,7 +64,10 @@ public class Transfer
     public long Started { get; set; }
     public long Finished { get; set; }
 
-    public string StateLabel => S.T(State switch { "done" => "تم — تحقّق الكمبيوتر من سلامة الملف", "failed" => "فشل", _ => "قيد الاستلام" });
+    public string StateLabel => S.T(Direction == "out"
+        ? State switch { "done" => "تم — تحقّق الهاتف من سلامة الملف", "failed" => "فشل", _ => "بانتظار الهاتف" }
+        : State switch { "done" => "تم — تحقّق الكمبيوتر من سلامة الملف", "failed" => "فشل", _ => "قيد الاستلام" });
+    public string DirectionLabel => S.T(Direction == "out" ? "إلى الهاتف" : "من الهاتف");
     public string SizeText => Size <= 0 ? "" : Size < 1048576 ? $"{Size / 1024.0:0.#} KB" : $"{Size / 1048576.0:0.#} MB";
     public string DateText => DateTimeOffset.FromUnixTimeMilliseconds(Started).LocalDateTime.ToString("g");
 }

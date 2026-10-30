@@ -276,6 +276,34 @@ public partial class MainWindow : Window
                     if (c != null) { foreach (var i in sel) _db.Move(i.Id, c.Id); Refresh(); }
                 }
                 break;
+            case "sendphone":
+            {
+                if (sel.Count == 0) break;
+                var devs = _db.Devices();
+                if (devs.Count == 0) { Dlg.Info(this, S.T("اربط الهاتف أولًا (أدوات ← ربط الهاتف…)")); break; }
+                var target = devs[0];
+                if (devs.Count > 1)
+                {
+                    var pick = Dlg.Pick(this, S.T("ربط الهاتف"), devs.Select(x => new Choice(x.Id, x.Name)));
+                    if (pick == null) break;
+                    target = devs.First(x => x.Id == pick.Id);
+                }
+                var queued = _db.ListOutbox(target.Id).Select(x => x.ItemId).ToHashSet();
+                int added = 0;
+                foreach (var it in sel)
+                {
+                    if (queued.Contains(it.Id)) continue; // already waiting for this phone
+                    if (it.Text == null && _store.PathFor(it.RelPath) == null) continue;
+                    _db.InsertTransfer(new Transfer
+                    {
+                        Id = Guid.NewGuid().ToString(), DeviceId = target.Id, Direction = "out", Kind = it.Kind, Title = it.Title,
+                        FileName = it.FileName ?? "", Mime = it.Mime ?? "", Size = it.Size, Sha256 = it.Sha256 ?? "", State = "queued", ItemId = it.Id, Started = Now(),
+                    });
+                    added++;
+                }
+                if (added > 0) Status(S.T("أُضيف إلى قائمة النقل — يصل الهاتف عند فتح TwinMemory عليه"));
+                break;
+            }
             case "delete":
                 if (sel.Count == 0) break;
                 if (_navKey == "trash") { Run("purge"); break; }

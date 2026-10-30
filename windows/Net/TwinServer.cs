@@ -261,6 +261,53 @@ public class TwinServer
             Notify();
             return Results.Json(new { ok = true, duplicate = dup });
         });
+
+        // ---- computer -> phone: the phone pulls (the phone cannot accept inbound connections) ----
+        app.MapGet("/outbox", (HttpContext c) =>
+        {
+            var dev = Auth(c);
+            if (dev == null) return Err(401, "unauthorized");
+            var list = _db.ListOutbox(dev.Id).Select(t => new
+            {
+                id = t.Id, kind = t.Kind, title = t.Title, fileName = t.FileName, mime = t.Mime, size = t.Size, sha256 = t.Sha256,
+                text = t.ItemId == null ? null : _db.GetItem(t.ItemId)?.Text,
+            }).ToList();
+            return Results.Json(new { items = list });
+        });
+
+        app.MapGet("/outbox/{id}/data", (HttpContext c, string id) =>
+        {
+            var dev = Auth(c);
+            if (dev == null) return Err(401, "unauthorized");
+            var t = _db.GetTransfer(id);
+            if (t == null || t.Direction != "out" || t.DeviceId != dev.Id) return Err(404, "not_found");
+            var item = t.ItemId == null ? null : _db.GetItem(t.ItemId);
+            var path = item == null ? null : _store.PathFor(item.RelPath);
+            if (path == null) return Err(410, "gone");
+            return Results.File(path, "application/octet-stream", enableRangeProcessing: true); // supports Range for resume
+        });
+
+        app.MapPost("/outbox/{id}/ack", (HttpContext c, string id) =>
+        {
+            var dev = Auth(c);
+            if (dev == null) return Err(401, "unauthorized");
+            var t = _db.GetTransfer(id);
+            if (t == null || t.Direction != "out" || t.DeviceId != dev.Id) return Err(404, "not_found");
+            _db.SetTransferState(id, "done", null); // the phone confirmed size + SHA-256 before acking
+            Notify();
+            return Results.Json(new { ok = true });
+        });
+
+        app.MapPost("/outbox/{id}/fail", (HttpContext c, string id) =>
+        {
+            var dev = Auth(c);
+            if (dev == null) return Err(401, "unauthorized");
+            var t = _db.GetTransfer(id);
+            if (t == null || t.Direction != "out" || t.DeviceId != dev.Id) return Err(404, "not_found");
+            _db.SetTransferState(id, "failed", "phone");
+            Notify();
+            return Results.Json(new { ok = true });
+        });
     }
 
     // UDP discovery: the phone broadcasts a short message and gets the address/port back (manual IP entry remains as fallback).

@@ -1,7 +1,10 @@
 package com.belalmomani.twinmemory.net
 
 import android.util.Base64
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URL
 import java.security.MessageDigest
@@ -93,4 +96,22 @@ class PcClient(private val host: String, private val port: Int, private val pin:
         c.outputStream.close()
         return finish(c)
     }
+
+    // ---- computer -> phone (the phone pulls) ----
+    fun listOutbox(): JSONArray = finish(open("/outbox", "GET")).optJSONArray("items") ?: JSONArray()
+
+    /** Resumes from the existing part file using an HTTP Range request. */
+    fun download(id: String, part: File) {
+        val existing = if (part.exists()) part.length() else 0L
+        val c = open("/outbox/$id/data", "GET", 60000)
+        if (existing > 0) c.setRequestProperty("Range", "bytes=$existing-")
+        val code = c.responseCode
+        if (code == 416) return // nothing left to download; the caller verifies size and hash
+        if (code !in 200..299) throw HttpError(code, c.errorStream?.bufferedReader()?.use { it.readText() } ?: "")
+        part.parentFile?.mkdirs()
+        c.inputStream.use { input -> FileOutputStream(part, code == 206).use { out -> input.copyTo(out, 64 * 1024) } }
+    }
+
+    fun ack(id: String) { finish(open("/outbox/$id/ack", "POST").also { it.doOutput = true; it.setFixedLengthStreamingMode(0); it.outputStream.close() }) }
+    fun fail(id: String) { finish(open("/outbox/$id/fail", "POST").also { it.doOutput = true; it.setFixedLengthStreamingMode(0); it.outputStream.close() }) }
 }

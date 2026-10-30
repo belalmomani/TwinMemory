@@ -57,6 +57,14 @@ public static class S
         ["تعذّر تشغيل خادم الربط"] = "Could not start the pairing server",
         ["لا توجد عمليات نقل بعد"] = "No transfers yet",
         ["الخادم"] = "Server",
+        ["إرسال إلى الهاتف"] = "Send to phone",
+        ["اربط الهاتف أولًا (أدوات ← ربط الهاتف…)"] = "Pair a phone first (Tools → Pair phone…)",
+        ["أُضيف إلى قائمة النقل — يصل الهاتف عند فتح TwinMemory عليه"] = "Added to the transfer queue — it arrives when TwinMemory is open on the phone",
+        ["بانتظار الهاتف"] = "Waiting for phone",
+        ["تم — تحقّق الهاتف من سلامة الملف"] = "Done — phone verified integrity",
+        ["الاتجاه"] = "Direction",
+        ["من الهاتف"] = "From phone",
+        ["إلى الهاتف"] = "To phone",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

@@ -15,6 +15,7 @@ import java.io.File
 import java.util.UUID
 
 enum class SaveResult { OK, DUPLICATE, FAILED }
+enum class Recv { OK, BAD, ERROR }
 
 class ItemRepository(private val ctx: Context, private val db: AppDatabase, private val store: FileStore) {
     private val items = db.items()
@@ -86,4 +87,28 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
 
     suspend fun addTag(id: String, tag: String) { val t = tag.trim().take(30); if (t.isNotEmpty()) items.addTag(ItemTag(id, t)) }
     suspend fun removeTag(id: String, tag: String) = items.removeTag(ItemTag(id, tag))
+
+    // ---- items received from the computer (id = the computer's transfer id, so a repeated delivery never duplicates) ----
+    suspend fun receiveText(id: String, kind: String, title: String, text: String): Recv = withContext(Dispatchers.IO) {
+        try {
+            val ts = now()
+            items.insert(ItemEntity(id, kind, title.ifBlank { Classify.titleFor(text) }, text, null, "text/plain",
+                text.toByteArray().size.toLong(), null, null, "pc", null, false, ts, ts, null))
+            Recv.OK
+        } catch (e: Exception) { Recv.ERROR }
+    }
+
+    suspend fun receiveFile(id: String, kind: String, name: String, mime: String?, file: File, size: Long, sha: String): Recv = withContext(Dispatchers.IO) {
+        try {
+            if (file.length() != size) return@withContext Recv.BAD
+            val st = file.inputStream().use { store.store(id, name, it) }
+            if (st.sha256 != sha.lowercase()) { store.delete(id); return@withContext Recv.BAD }
+            try {
+                val ts = now()
+                items.insert(ItemEntity(id, kind, name, null, name, mime?.ifBlank { null }, st.size, st.sha256, st.relPath, "pc", null, false, ts, ts, null))
+            } catch (e: Exception) { store.delete(id); return@withContext Recv.ERROR }
+            file.delete()
+            Recv.OK
+        } catch (e: Exception) { store.delete(id); Recv.ERROR }
+    }
 }

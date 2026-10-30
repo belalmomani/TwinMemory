@@ -93,7 +93,7 @@
     <string name="tool_settings">Settings</string>
     <string name="count_none">No items</string>
     <string name="count_items">%1$d items</string>
-    <string name="zone_pc_empty">Items arriving from your computer will appear here after pairing (coming soon).</string>
+    <string name="zone_pc_empty">Items you send from the computer (Send to phone) appear here while the app is open.</string>
     <string name="queue_empty">No transfers. They appear here after pairing your phone with a computer.</string>
     <string name="help_title">Help</string>
     <string name="help_body">• Tap Save to add text, a link, or import a file.
@@ -124,4 +124,5 @@
     <string name="msg_need_pair">Pair your computer first (More → Pair computer)</string>
     <string name="msg_unpaired_remote">The computer removed the pairing</string>
     <string name="none_found">No computer found, enter the address manually</string>
+    <string name="msg_received">New items arrived from your computer</string>
 </resources>
