@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,17 @@ public class TwinServer
     public string LastDeviceName { get; private set; } = "";
     public bool Running { get; private set; }
     public event Action? DataChanged;
+    public string LogPath { get; private set; } = "";
+
+    public void Log(string line)
+    {
+        try
+        {
+            if (File.Exists(LogPath) && new FileInfo(LogPath).Length > 1_000_000) File.Delete(LogPath);
+            File.AppendAllText(LogPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {line}{Environment.NewLine}");
+        }
+        catch { }
+    }
 
     class PairSession { public string Code = ""; public DateTime Expires; public int Attempts; }
 
@@ -51,26 +63,41 @@ public class TwinServer
         _incoming = Path.Combine(dataDir, "incoming");
         Directory.CreateDirectory(_incoming);
         _certDir = dataDir;
+        LogPath = Path.Combine(dataDir, "server.log");
     }
     readonly string _certDir;
 
     public async Task StartAsync()
     {
-        _cert = CertStore.LoadOrCreate(_certDir);
-        Fingerprint = CertStore.Fingerprint(_cert);
-        var b = WebApplication.CreateBuilder();
-        b.Logging.ClearProviders();
-        b.WebHost.ConfigureKestrel(o =>
+        try
         {
-            o.Limits.MaxRequestBodySize = null;
-            o.ListenAnyIP(Port, l => l.UseHttps(_cert));
-        });
-        _app = b.Build();
-        Map(_app);
-        await _app.StartAsync();
-        Running = true;
-        StartDiscovery();
-        DataChanged?.Invoke();
+            _cert = CertStore.LoadOrCreate(_certDir);
+            Fingerprint = CertStore.Fingerprint(_cert);
+            var b = WebApplication.CreateBuilder();
+            b.Logging.ClearProviders();
+            b.WebHost.ConfigureKestrel(o =>
+            {
+                o.Limits.MaxRequestBodySize = null;
+                o.ListenAnyIP(Port, l => { l.Protocols = HttpProtocols.Http1; l.UseHttps(_cert); }); // HTTP/1.1 only: simplest for the phone client
+            });
+            _app = b.Build();
+            _app.Use(async (ctx, next) =>
+            {
+                await next();
+                Log($"{ctx.Request.Method} {ctx.Request.Path} -> {ctx.Response.StatusCode} from {ctx.Connection.RemoteIpAddress}");
+            });
+            Map(_app);
+            await _app.StartAsync();
+            Running = true;
+            Log($"server started on port {Port}, fingerprint {Fingerprint[..16]}, addresses: {string.Join(", ", LocalAddresses())}");
+            StartDiscovery();
+            DataChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Log("START FAILED: " + ex);
+            throw;
+        }
     }
 
     // ---- pairing code (shown in the UI) ----
@@ -83,11 +110,20 @@ public class TwinServer
         return (s.Code, s.Expires);
     }
 
-    public static List<string> LocalAddresses() => NetworkInterface.GetAllNetworkInterfaces()
-        .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-        .SelectMany(n => n.GetIPProperties().UnicastAddresses)
-        .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork)
-        .Select(a => a.Address.ToString()).Distinct().ToList();
+    /// <summary>LAN IPv4 addresses, skipping virtual adapters (VMware, Hyper-V, WSL, VPN...) that the phone cannot reach.</summary>
+    public static List<string> LocalAddresses()
+    {
+        static IEnumerable<string> Addrs(IEnumerable<NetworkInterface> nics) => nics
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork && !a.Address.ToString().StartsWith("169.254."))
+            .Select(a => a.Address.ToString());
+        var up = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback).ToList();
+        string[] virt = { "virtual", "vmware", "vbox", "hyper-v", "vethernet", "wsl", "bluetooth", "tap", "tun", "vpn", "tailscale", "zerotier", "docker" };
+        var real = up.Where(n => !virt.Any(v => (n.Name + " " + n.Description).Contains(v, StringComparison.OrdinalIgnoreCase))).ToList();
+        var list = Addrs(real.Count > 0 ? real : up).Distinct().ToList();
+        return list.OrderBy(a => a.StartsWith("192.168.") ? 0 : a.StartsWith("10.") ? 1 : 2).ToList();
+    }
 
     // ---- helpers ----
     static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();

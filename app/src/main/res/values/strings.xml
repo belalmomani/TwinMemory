@@ -125,4 +125,5 @@
     <string name="msg_unpaired_remote">The computer removed the pairing</string>
     <string name="none_found">No computer found, enter the address manually</string>
     <string name="msg_received">New items arrived from your computer</string>
+    <string name="test_conn">Test connection</string>
 </resources>

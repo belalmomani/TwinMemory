@@ -71,6 +71,14 @@ public static class S
         ["فتح مجلد TwinMemory في المستكشف"] = "Open TwinMemory folder in Explorer",
         ["مزامنة المجلد الآن"] = "Sync folder now",
         ["مجلد المزامنة"] = "Sync folder",
+        ["المنفذ"] = "Port",
+        ["اختبار الخادم"] = "Test server",
+        ["السماح في جدار الحماية"] = "Allow in firewall",
+        ["نتيجة الاختبار"] = "Test result",
+        ["الخادم يعمل"] = "Server is running",
+        ["الخادم لا يعمل"] = "Server is not running",
+        ["سجل الخادم"] = "Server log",
+        ["طُلبت إضافة قاعدة جدار الحماية — وافق على طلب المدير ثم أعد المحاولة من الهاتف"] = "Firewall rule requested — approve the administrator prompt, then retry from the phone",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

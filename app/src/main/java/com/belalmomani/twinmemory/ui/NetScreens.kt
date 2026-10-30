@@ -56,6 +56,7 @@ fun QueueScreen(list: List<TransferEntity>, onBack: () -> Unit, onRetry: (String
                         }
                         if (t.size > 0) Text(Formatter.formatShortFileSize(ctx, t.size), color = TM.Muted, style = MaterialTheme.typography.bodySmall)
                         if (t.state == "SENDING" && t.size > 0) LinearProgressIndicator(progress = { t.sent.toFloat() / t.size }, modifier = Modifier.fillMaxWidth())
+                        if (t.state == "WAITING" && !t.error.isNullOrBlank()) Text(t.error, color = TM.Muted, style = MaterialTheme.typography.bodySmall)
                         if (t.state == "FAILED") {
                             Text(t.error ?: "", color = TM.ErrorFg, style = MaterialTheme.typography.bodySmall)
                             TextButton({ onRetry(t.id) }) { Text(stringResource(R.string.retry)) }
@@ -73,6 +74,7 @@ fun PairScreen(vm: MainViewModel, onBack: () -> Unit) {
     val pc by vm.pcName.collectAsStateWithLifecycle()
     val found by vm.found.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val diag by vm.diag.collectAsStateWithLifecycle()
     var host by rememberSaveable { mutableStateOf("") }
     var port by rememberSaveable { mutableStateOf("47821") }
     var code by rememberSaveable { mutableStateOf("") }
@@ -104,6 +106,8 @@ fun PairScreen(vm: MainViewModel, onBack: () -> Unit) {
                     code, { code = it.uppercase() }, singleLine = true, label = { Text(stringResource(R.string.pair_code)) },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedButton({ vm.testConnection(host, port.toIntOrNull() ?: 47821) }, enabled = !busy && host.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.test_conn)) }
+                if (diag.isNotBlank()) Text(diag, color = if (diag.startsWith("OK")) TM.SuccessFg else TM.ErrorFg, style = MaterialTheme.typography.bodySmall)
                 Button(
                     { vm.pair(host, port.toIntOrNull() ?: 47821, code) },
                     enabled = !busy && host.isNotBlank() && code.filter { it.isLetterOrDigit() }.length >= 8,

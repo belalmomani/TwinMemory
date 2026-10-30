@@ -64,6 +64,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val transfersList = tapp.transfers.observe().keep(emptyList())
     val found = MutableStateFlow<List<Discovery.Found>>(emptyList())
     val busy = MutableStateFlow(false)
+    val diag = MutableStateFlow("")
+
+    /** Accepts "192.168.1.5", "192.168.1.5:47821" or "https://192.168.1.5:47821/". */
+    private fun parseHost(raw: String, defPort: Int): Pair<String, Int> {
+        var h = raw.trim().removePrefix("https://").removePrefix("http://").substringBefore('/')
+        var p = defPort
+        if (h.count { it == ':' } == 1) { p = h.substringAfter(':').toIntOrNull() ?: defPort; h = h.substringBefore(':') }
+        return h to p
+    }
+
+    private fun describe(e: Exception): String = when (e) {
+        is PcClient.HttpError -> "HTTP ${e.code} ${e.body.take(120)}"
+        else -> e.javaClass.simpleName + ": " + (e.message ?: "")
+    }
+
+    fun testConnection(host: String, port: Int) = viewModelScope.launch(Dispatchers.IO) {
+        val (h, p) = parseHost(host, port)
+        busy.value = true; diag.value = ""
+        try {
+            val j = PcClient(h, p, null, null, tapp.pairing.deviceId).info()
+            diag.value = "OK: " + j.optString("name") + " (" + h + ":" + p + ")"
+        } catch (e: Exception) { diag.value = describe(e) }
+        finally { busy.value = false }
+    }
 
     init {
         if (tapp.pairing.load() != null) tapp.transfers.kick()
@@ -90,14 +114,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun pair(host: String, port: Int, code: String) = viewModelScope.launch(Dispatchers.IO) {
         busy.value = true
         try {
-            val h = host.trim()
-            val r = PcClient(h, port, null, null, tapp.pairing.deviceId).pair(code, Build.MODEL ?: "Android")
-            tapp.pairing.save(Pairing(h, port, r.fingerprint, r.token, r.pcName, tapp.pairing.deviceId))
+            val (h, pt) = parseHost(host, port)
+            diag.value = ""
+            val r = PcClient(h, pt, null, null, tapp.pairing.deviceId).pair(code, Build.MODEL ?: "Android")
+            tapp.pairing.save(Pairing(h, pt, r.fingerprint, r.token, r.pcName, tapp.pairing.deviceId))
             msgs.tryEmit(R.string.msg_paired)
             pingOnce(); tapp.transfers.kick()
         } catch (e: PcClient.HttpError) {
+            diag.value = describe(e)
             msgs.tryEmit(if (e.code == 403) R.string.msg_pair_bad_code else R.string.msg_pair_unreachable)
-        } catch (e: Exception) { msgs.tryEmit(R.string.msg_pair_unreachable) }
+        } catch (e: Exception) { diag.value = describe(e); msgs.tryEmit(R.string.msg_pair_unreachable) }
         finally { busy.value = false }
     }
 

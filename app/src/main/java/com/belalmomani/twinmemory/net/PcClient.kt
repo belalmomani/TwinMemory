@@ -62,6 +62,9 @@ class PcClient(private val host: String, private val port: Int, private val pin:
         return finish(c)
     }
 
+    /** Unauthenticated reachability test (works before pairing). */
+    fun info(): JSONObject = finish(open("/info", "GET"))
+
     fun ping(): Boolean = finish(open("/ping", "GET")).optBoolean("ok")
 
     fun pair(code: String, deviceName: String): PairResult {

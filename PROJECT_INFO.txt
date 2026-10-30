@@ -3,7 +3,7 @@
 اسم الحزمة: com.belalmomani.twinmemory
 رقم الإصدار: 1.0.0
 Version Code: 1
-تاريخ ووقت إنشاء هذه الحزمة: 2026-10-30 11:20:12 UTC (UTC+0000)
-المرحلة: 5 (مجلد TwinMemory في Explorer + محرك مزامنة) — لم يُختبر بعد
+تاريخ ووقت إنشاء هذه الحزمة: 2026-10-30 21:15:18 UTC (UTC+0000)
+المرحلة: 5.1 (تشخيص الربط وإصلاحات) — لم يُختبر بعد
 المشروع: TwinMemory
 مستودع GitHub: https://github.com/belalmomani/TwinMemory.git
