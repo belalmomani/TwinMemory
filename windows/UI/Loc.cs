@@ -6,7 +6,7 @@ namespace TwinMemory;
 /// <summary>Arabic text is the key; English is used when the Windows UI language is not Arabic.</summary>
 public static class S
 {
-    public static readonly bool Ar = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+    public static bool Ar { get; set; } = true; // set from Settings (Arabic by default)
 
     static readonly Dictionary<string, string> En = new()
     {
@@ -34,6 +34,29 @@ public static class S
         ["• + جديد ← حفظ نص/رابط أو استيراد ملف.\n• Ctrl+V للصق ما نسخته (نص أو ملفات)، أو اسحب الملفات إلى النافذة.\n• زر الفأرة الأيمن على عنصر: نسخ، إعادة تسمية، نقل، مفضلة.\n• المحذوفات تبقى في السلة حتى تحذفها نهائيًا.\n• ربط الهاتف والنقل بين الجهازين: المرحلة 4."]
             = "• + New → save text/link or import a file.\n• Ctrl+V pastes what you copied (text or files), or drag files into the window.\n• Right-click an item: copy, rename, move, favorite.\n• Deleted items stay in Trash until you delete them permanently.\n• Phone pairing and transfer: phase 4.",
         ["بياناتك محفوظة على هذا الكمبيوتر فقط ولا تُرفع إلى أي خدمة سحابية."] = "Your data is stored on this computer only and is not uploaded to any cloud service.",
+        ["ربط الهاتف…"] = "Pair phone…",
+        ["قائمة النقل"] = "Transfer queue",
+        ["اللغة"] = "Language",
+        ["العربية"] = "Arabic",
+        ["تلقائي (حسب النظام)"] = "Automatic (system)",
+        ["ستُعاد تشغيل التطبيق لتطبيق اللغة. متابعة؟"] = "The app will restart to apply the language. Continue?",
+        ["ربط الهاتف"] = "Pair phone",
+        ["رمز جديد"] = "New code",
+        ["إلغاء ربط المحدد"] = "Unpair selected",
+        ["الأجهزة المرتبطة"] = "Paired devices",
+        ["الرمز صالح دقيقتين ويُستخدم مرة واحدة.\nعلى الهاتف: المزيد ← ربط الكمبيوتر، ثم أدخل العنوان والرمز.\nيجب أن يكون الجهازان على نفس الشبكة. اسمح لـ TwinMemory في جدار حماية Windows عند ظهور النافذة (الشبكة الخاصة)."] = "The code is valid for 2 minutes and works once.\nOn the phone: More → Pair computer, then enter the address and code.\nBoth devices must be on the same network. Allow TwinMemory in Windows Firewall when prompted (private network).",
+        ["العنوان"] = "Address",
+        ["لا توجد أجهزة مرتبطة"] = "No paired devices",
+        ["منتهي"] = "Expired",
+        ["الهاتف: متصل"] = "Phone: connected",
+        ["الهاتف: مرتبط — غير متصل"] = "Phone: paired — offline",
+        ["قيد الاستلام"] = "Receiving",
+        ["تم — تحقّق الكمبيوتر من سلامة الملف"] = "Done — integrity verified",
+        ["فشل"] = "Failed",
+        ["الجهاز"] = "Device",
+        ["تعذّر تشغيل خادم الربط"] = "Could not start the pairing server",
+        ["لا توجد عمليات نقل بعد"] = "No transfers yet",
+        ["الخادم"] = "Server",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

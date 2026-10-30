@@ -15,20 +15,23 @@ import androidx.compose.ui.unit.sp
 import com.belalmomani.twinmemory.R
 import com.belalmomani.twinmemory.ui.theme.TM
 
-/** Connection/transfer states from the approved design. Real states are fed by later phases. */
+/** Connection/transfer states from the approved design. */
 enum class TmStatus(val bg: Color, val fg: Color, @StringRes val label: Int) {
     Connected(TM.SuccessBg, TM.SuccessFg, R.string.status_connected),
     Transferring(TM.PrimarySoft, TM.PrimaryDark, R.string.status_transferring),
     Waiting(TM.WarnBg, TM.WarnFg, R.string.status_waiting),
     Failed(TM.ErrorBg, TM.ErrorFg, R.string.status_failed),
     Offline(TM.IdleBg, TM.Muted, R.string.status_offline),
+    Unpaired(TM.IdleBg, TM.Muted, R.string.status_unpaired),
 }
 
 @Composable
-fun StatusChip(status: TmStatus, modifier: Modifier = Modifier) {
+fun StatusChip(status: TmStatus, modifier: Modifier = Modifier) = StatusChip(stringResource(status.label), status.bg, status.fg, modifier)
+
+@Composable
+fun StatusChip(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier) {
     Text(
-        text = stringResource(status.label),
-        color = status.fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-        modifier = modifier.background(status.bg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp),
+        text = text, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+        modifier = modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp),
     )
 }

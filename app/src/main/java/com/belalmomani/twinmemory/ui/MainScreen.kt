@@ -4,6 +4,7 @@ import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -64,6 +65,8 @@ fun MainScreen(vm: MainViewModel) {
     val kind by vm.kind.collectAsStateWithLifecycle()
     val sort by vm.sort.collectAsStateWithLifecycle()
     val openFolder by vm.openFolder.collectAsStateWithLifecycle()
+    val conn by vm.conn.collectAsStateWithLifecycle()
+    val queue by vm.transfersList.collectAsStateWithLifecycle()
 
     val acts = ItemActions(
         onOpen = { dlg = Dlg.Props(it) },
@@ -74,6 +77,7 @@ fun MainScreen(vm: MainViewModel) {
         onFavorite = { vm.toggleFavorite(it) },
         onProps = { dlg = Dlg.Props(it) },
         onTrash = { vm.trash(it) },
+        onSend = { vm.sendToPc(listOf(it)) },
     )
     fun forRoute(r: String?): List<ItemEntity> = when (r) {
         "cat:files" -> home.filter { it.kind == "FILE" || it.kind == "DOCUMENT" || it.kind == "VIDEO" }
@@ -98,7 +102,7 @@ fun MainScreen(vm: MainViewModel) {
     BackHandler(enabled = route != null || showTrash || openFolder != null) {
         when { showTrash -> showTrash = false; route != null -> route = null; else -> vm.openFolder.value = null }
     }
-    val canSave = !showTrash && route != "queue" && route != "favs" && ((tab == 0) || (tab == 1 && openFolder != null))
+    val canSave = !showTrash && route != "queue" && route != "favs" && route != "pair" && ((tab == 0) || (tab == 1 && openFolder != null))
 
     Scaffold(
         containerColor = TM.Background,
@@ -119,6 +123,8 @@ fun MainScreen(vm: MainViewModel) {
         Column(Modifier.padding(pad).fillMaxSize()) {
             when {
                 showTrash -> TrashScreen(trash, { showTrash = false }, { vm.restore(it) }, { dlg = Dlg.Forever(it) })
+                route == "pair" -> PairScreen(vm) { route = null }
+                route == "queue" -> QueueScreen(queue, { route = null }, { vm.retry(it) })
                 route != null -> {
                     Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton({ route = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
@@ -133,7 +139,13 @@ fun MainScreen(vm: MainViewModel) {
                         Icon(Icons.Filled.Cloud, null, tint = TM.Primary, modifier = Modifier.size(30.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        StatusChip(TmStatus.Offline) // no pairing layer yet (Phase 4): state is truthful
+                        val st = when {
+                            conn == Conn.UNPAIRED -> TmStatus.Unpaired
+                            conn == Conn.OFFLINE -> TmStatus.Offline
+                            queue.any { it.state == "SENDING" } -> TmStatus.Transferring
+                            else -> TmStatus.Connected
+                        }
+                        StatusChip(st, Modifier.clickable { route = "pair" })
                     }
                     OutlinedTextField(query, { vm.query.value = it }, singleLine = true, placeholder = { Text(stringResource(R.string.search_hint)) },
                         leadingIcon = { Icon(Icons.Filled.Search, null) }, modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp))
@@ -149,7 +161,7 @@ fun MainScreen(vm: MainViewModel) {
                     }
                     ItemList(inFolder, R.string.folder_items_empty, acts, Modifier.weight(1f))
                 }
-                else -> MoreScreen(Formatter.formatShortFileSize(ctx, total)) { showTrash = true }
+                else -> MoreScreen(Formatter.formatShortFileSize(ctx, total), onPair = { route = "pair" }) { showTrash = true }
             }
         }
     }
@@ -233,7 +245,7 @@ private fun TrashScreen(trash: List<ItemEntity>, onBack: () -> Unit, onRestore: 
 }
 
 @Composable
-private fun MoreScreen(used: String, onTrash: () -> Unit) {
+private fun MoreScreen(used: String, onPair: () -> Unit, onTrash: () -> Unit) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.nav_more), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Card(colors = CardDefaults.cardColors(containerColor = TM.Surface), modifier = Modifier.fillMaxWidth()) {
@@ -242,6 +254,7 @@ private fun MoreScreen(used: String, onTrash: () -> Unit) {
                 Text(stringResource(R.string.storage_note), color = TM.Muted)
             }
         }
+        Button(onPair, Modifier.fillMaxWidth()) { Text(stringResource(R.string.pair_title)) }
         OutlinedButton(onTrash, Modifier.fillMaxWidth()) { Icon(Icons.Filled.Delete, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.trash)) }
         Text(stringResource(R.string.version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), color = TM.Muted)
     }

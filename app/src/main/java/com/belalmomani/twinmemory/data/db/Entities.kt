@@ -34,3 +34,18 @@ data class ItemEntity(
     indices = [Index("tag")],
 )
 data class ItemTag(val itemId: String, val tag: String)
+
+/** Persistent send queue (phone → computer). State: PENDING, WAITING (offline), SENDING, DONE (verified by the computer), FAILED. */
+@Entity(tableName = "transfers")
+data class TransferEntity(
+    @PrimaryKey val id: String,
+    val itemId: String,
+    val title: String,
+    val state: String,
+    val size: Long,
+    val sent: Long,
+    val attempts: Int,
+    val error: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)

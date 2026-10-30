@@ -39,6 +39,13 @@ CREATE INDEX IF NOT EXISTS ix_items_sha ON items(sha256);
 CREATE TABLE IF NOT EXISTS item_tags(item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE, tag TEXT NOT NULL, PRIMARY KEY(item_id, tag));");
             Exec(c, "PRAGMA user_version = 1");
         }
+        if (v < 2)
+        {
+            Exec(c, @"CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL, paired_at INTEGER NOT NULL, last_seen INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NULL, direction TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
+ file_name TEXT, mime TEXT, size INTEGER NOT NULL, sha256 TEXT, state TEXT NOT NULL, item_id TEXT, error TEXT, started INTEGER NOT NULL, finished INTEGER);");
+            Exec(c, "PRAGMA user_version = 2");
+        }
     }
 
     const string Cols = "id,kind,title,text,file_name,mime,size,sha256,rel_path,source,folder_id,favorite,created,updated,trashed";
@@ -125,4 +132,72 @@ CREATE TABLE IF NOT EXISTS item_tags(item_id TEXT NOT NULL REFERENCES items(id) 
 
     public void CreateFolder(string name) { using var c = Open(); Exec(c, "INSERT INTO folders(id,name,created) VALUES($id,$n,$c)", ("$id", Guid.NewGuid().ToString()), ("$n", name), ("$c", Now())); }
     public void RenameFolder(string id, string name) { using var c = Open(); Exec(c, "UPDATE folders SET name=$n WHERE id=$id", ("$n", name), ("$id", id)); }
+
+    // ---- paired devices ----
+    public DeviceInfo? GetDevice(string id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,token_hash,paired_at,last_seen FROM devices WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? new DeviceInfo(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetInt64(4)) : null;
+    }
+
+    public List<DeviceInfo> Devices()
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,token_hash,paired_at,last_seen FROM devices ORDER BY paired_at";
+        var l = new List<DeviceInfo>(); using var r = cmd.ExecuteReader();
+        while (r.Read()) l.Add(new DeviceInfo(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetInt64(4)));
+        return l;
+    }
+
+    public void UpsertDevice(string id, string name, string tokenHash)
+    {
+        using var c = Open();
+        Exec(c, "INSERT INTO devices(id,name,token_hash,paired_at,last_seen) VALUES($id,$n,$t,$now,$now) ON CONFLICT(id) DO UPDATE SET name=$n, token_hash=$t, paired_at=$now",
+            ("$id", id), ("$n", name), ("$t", tokenHash), ("$now", Now()));
+    }
+    public void TouchDevice(string id) { using var c = Open(); Exec(c, "UPDATE devices SET last_seen=$n WHERE id=$id", ("$n", Now()), ("$id", id)); }
+    public void DeleteDevice(string id) { using var c = Open(); Exec(c, "DELETE FROM devices WHERE id=$id", ("$id", id)); }
+
+    // ---- transfers ----
+    public void InsertTransfer(Transfer t)
+    {
+        using var c = Open();
+        Exec(c, "INSERT INTO transfers(id,device_id,direction,kind,title,file_name,mime,size,sha256,state,item_id,error,started,finished) VALUES($id,$d,$dir,$k,$t,$fn,$m,$s,$sha,$st,$it,$e,$sa,$fi)",
+            ("$id", t.Id), ("$d", t.DeviceId), ("$dir", t.Direction), ("$k", t.Kind), ("$t", t.Title), ("$fn", t.FileName), ("$m", t.Mime), ("$s", t.Size),
+            ("$sha", t.Sha256), ("$st", t.State), ("$it", t.ItemId), ("$e", t.Error), ("$sa", t.Started), ("$fi", t.Finished));
+    }
+
+    const string TCols = "t.id,t.device_id,t.direction,t.kind,t.title,t.file_name,t.mime,t.size,t.sha256,t.state,t.item_id,t.error,t.started,t.finished,COALESCE(d.name,'')";
+    static Transfer ReadTransfer(SqliteDataReader r)
+    {
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        return new Transfer
+        {
+            Id = r.GetString(0), DeviceId = r.GetString(1), Direction = r.GetString(2), Kind = r.GetString(3), Title = r.GetString(4),
+            FileName = S(5) ?? "", Mime = S(6) ?? "", Size = r.GetInt64(7), Sha256 = S(8) ?? "", State = r.GetString(9), ItemId = S(10), Error = S(11),
+            Started = r.GetInt64(12), Finished = r.IsDBNull(13) ? 0 : r.GetInt64(13), DeviceName = r.GetString(14),
+        };
+    }
+
+    public Transfer? GetTransfer(string id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {TCols} FROM transfers t LEFT JOIN devices d ON d.id=t.device_id WHERE t.id=$id"; cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadTransfer(r) : null;
+    }
+
+    public List<Transfer> ListTransfers(int limit)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {TCols} FROM transfers t LEFT JOIN devices d ON d.id=t.device_id ORDER BY t.started DESC LIMIT $l"; cmd.Parameters.AddWithValue("$l", limit);
+        var l = new List<Transfer>(); using var r = cmd.ExecuteReader();
+        while (r.Read()) l.Add(ReadTransfer(r));
+        return l;
+    }
+
+    public void SetTransferState(string id, string state, string? error) { using var c = Open(); Exec(c, "UPDATE transfers SET state=$s, error=$e, finished=$f WHERE id=$id", ("$s", state), ("$e", error), ("$f", Now()), ("$id", id)); }
+    public void FinishTransfer(string id, string itemId) { using var c = Open(); Exec(c, "UPDATE transfers SET state='done', item_id=$i, error=NULL, finished=$f WHERE id=$id", ("$i", itemId), ("$f", Now()), ("$id", id)); }
 }

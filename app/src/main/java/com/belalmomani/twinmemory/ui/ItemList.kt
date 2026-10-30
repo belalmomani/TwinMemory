@@ -32,7 +32,7 @@ import com.belalmomani.twinmemory.ui.theme.TM
 class ItemActions(
     val onOpen: (ItemEntity) -> Unit, val onCopy: (ItemEntity) -> Unit, val onMove: (ItemEntity) -> Unit,
     val onShare: (ItemEntity) -> Unit, val onRename: (ItemEntity) -> Unit, val onFavorite: (ItemEntity) -> Unit,
-    val onProps: (ItemEntity) -> Unit, val onTrash: (ItemEntity) -> Unit,
+    val onProps: (ItemEntity) -> Unit, val onTrash: (ItemEntity) -> Unit, val onSend: (ItemEntity) -> Unit,
 )
 
 @Composable
@@ -74,6 +74,7 @@ private fun ItemRow(item: ItemEntity, a: ItemActions) {
                 entry(R.string.rename, a.onRename)()
                 entry(if (item.favorite) R.string.unfavorite else R.string.favorite, a.onFavorite)()
                 entry(R.string.properties, a.onProps)()
+                entry(R.string.send_to_pc, a.onSend)()
                 entry(R.string.delete, a.onTrash)()
             }
         }

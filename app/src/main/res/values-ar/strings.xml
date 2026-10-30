@@ -100,4 +100,28 @@
 • من أي تطبيق: مشاركة ← TwinMemory.
 • اضغط مطولًا على عنصر للنسخ والنقل والمشاركة وغيرها.
 • المحذوفات تبقى في السلة حتى تحذفها نهائيًا.</string>
+    <string name="status_unpaired">غير مرتبط</string>
+    <string name="st_pending">في الانتظار</string>
+    <string name="st_waiting">بانتظار الاتصال</string>
+    <string name="st_sending">جارٍ الإرسال %1$d%%</string>
+    <string name="st_done">تم النقل وتحقق الكمبيوتر</string>
+    <string name="st_failed">فشل</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="send_to_pc">إرسال إلى الكمبيوتر</string>
+    <string name="pair_title">ربط الكمبيوتر</string>
+    <string name="pair_host">عنوان الكمبيوتر (IP)</string>
+    <string name="pair_port">المنفذ</string>
+    <string name="pair_code">رمز الربط</string>
+    <string name="pair_btn">ربط</string>
+    <string name="discover">بحث تلقائي</string>
+    <string name="paired_with">مرتبط بـ %1$s</string>
+    <string name="unpair">إلغاء الربط</string>
+    <string name="pair_help">على الكمبيوتر: أدوات ← ربط الهاتف، ثم أدخل العنوان والرمز الظاهرين. يجب أن يكون الجهازان على نفس الشبكة.</string>
+    <string name="msg_paired">تم الربط</string>
+    <string name="msg_pair_bad_code">الرمز غير صحيح أو منتهي</string>
+    <string name="msg_pair_unreachable">تعذّر الوصول إلى الكمبيوتر. تأكد من الشبكة وجدار الحماية.</string>
+    <string name="msg_queued">أُضيف إلى قائمة النقل</string>
+    <string name="msg_need_pair">اربط الكمبيوتر أولًا (المزيد ← ربط الكمبيوتر)</string>
+    <string name="msg_unpaired_remote">ألغى الكمبيوتر الربط</string>
+    <string name="none_found">لم يُعثر على كمبيوتر، أدخل العنوان يدويًا</string>
 </resources>

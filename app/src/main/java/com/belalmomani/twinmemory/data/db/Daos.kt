@@ -38,3 +38,16 @@ interface FolderDao {
     @Insert suspend fun insert(folder: FolderEntity)
     @Query("UPDATE folders SET name = :name WHERE id = :id") suspend fun rename(id: String, name: String)
 }
+
+@Dao
+interface TransferDao {
+    @Query("SELECT * FROM transfers ORDER BY createdAt DESC") fun observe(): Flow<List<TransferEntity>>
+    @Insert suspend fun insert(t: TransferEntity)
+    @Query("SELECT * FROM transfers WHERE state IN ('PENDING','WAITING','SENDING') ORDER BY createdAt") suspend fun active(): List<TransferEntity>
+    @Query("UPDATE transfers SET state = :s, error = :e, updatedAt = :n WHERE id = :id") suspend fun setState(id: String, s: String, e: String?, n: Long)
+    @Query("UPDATE transfers SET sent = :sent, state = 'SENDING', updatedAt = :n WHERE id = :id") suspend fun progress(id: String, sent: Long, n: Long)
+    @Query("UPDATE transfers SET attempts = attempts + 1 WHERE id = :id") suspend fun bump(id: String)
+    @Query("UPDATE transfers SET state = 'PENDING' WHERE state = 'SENDING'") suspend fun resetSending()
+    @Query("SELECT COUNT(*) FROM transfers WHERE itemId = :itemId AND state IN ('PENDING','WAITING','SENDING')") suspend fun activeFor(itemId: String): Int
+    @Query("UPDATE transfers SET state = 'PENDING', error = NULL, updatedAt = :n WHERE id = :id") suspend fun retry(id: String, n: Long)
+}

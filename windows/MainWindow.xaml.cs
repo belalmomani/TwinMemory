@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using TwinMemory.Core;
 
@@ -41,6 +42,20 @@ public partial class MainWindow : Window
         Title = S.Ar ? "TwinMemory — الذاكرة المشتركة" : "TwinMemory";
         BuildNav();
         Refresh();
+        App.Server.DataChanged += () => Dispatcher.BeginInvoke(new Action(() => { Refresh(); UpdatePhone(); }));
+        var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        t.Tick += (_, _) => UpdatePhone();
+        t.Start();
+        UpdatePhone();
+    }
+
+    void UpdatePhone()
+    {
+        var devs = App.Db.Devices();
+        if (App.ServerError != null) PhoneText.Text = S.T("تعذّر تشغيل خادم الربط");
+        else if (devs.Count == 0) PhoneText.Text = S.T("الهاتف: غير مرتبط");
+        else if ((DateTime.UtcNow - App.Server.LastSeenUtc).TotalSeconds < 45) PhoneText.Text = S.T("الهاتف: متصل") + " (" + App.Server.LastDeviceName + ")";
+        else PhoneText.Text = S.T("الهاتف: مرتبط — غير متصل");
     }
 
     void BuildNav()
@@ -291,6 +306,16 @@ public partial class MainWindow : Window
             case "refresh": BuildNav(); Refresh(); break;
             case "trashview": _navKey = "trash"; BuildNav(); Refresh(); break;
             case "close": Close(); break;
+            case "pair": new PairWindow(this).Show(); break;
+            case "transfers": new TransfersWindow(this).Show(); break;
+            case "lang:ar": case "lang:en": case "lang:auto":
+                if (Dlg.Confirm(this, S.T("ستُعاد تشغيل التطبيق لتطبيق اللغة. متابعة؟")))
+                {
+                    Settings.SaveLanguage(tag[5..]);
+                    Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--restart {Environment.ProcessId}") { UseShellExecute = true });
+                    Application.Current.Shutdown();
+                }
+                break;
             case "help": Dlg.Info(this, S.T("• + جديد ← حفظ نص/رابط أو استيراد ملف.\n• Ctrl+V للصق ما نسخته (نص أو ملفات)، أو اسحب الملفات إلى النافذة.\n• زر الفأرة الأيمن على عنصر: نسخ، إعادة تسمية، نقل، مفضلة.\n• المحذوفات تبقى في السلة حتى تحذفها نهائيًا.\n• ربط الهاتف والنقل بين الجهازين: المرحلة 4.")); break;
             case "about":
                 Dlg.Info(this, $"TwinMemory — الذاكرة المشتركة\n{S.T("الإصدار")}: {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}\n{S.T("مجلد البيانات")}: {App.DataDir}\n\n{S.T("بياناتك محفوظة على هذا الكمبيوتر فقط ولا تُرفع إلى أي خدمة سحابية.")}");

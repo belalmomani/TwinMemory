@@ -79,8 +79,15 @@
         <MenuItem Header="{l:T 'تحديث'}" Tag="refresh" Click="Cmd"/>
       </MenuItem>
       <MenuItem Header="{l:T 'أدوات'}">
-        <MenuItem Header="{l:T 'اتصال الهاتف (المرحلة 4)'}" IsEnabled="False"/>
+        <MenuItem Header="{l:T 'ربط الهاتف…'}" Tag="pair" Click="Cmd"/>
+        <MenuItem Header="{l:T 'قائمة النقل'}" Tag="transfers" Click="Cmd"/>
         <MenuItem Header="{l:T 'سلة المحذوفات'}" Tag="trashview" Click="Cmd"/>
+        <Separator/>
+        <MenuItem Header="{l:T 'اللغة'}">
+          <MenuItem Header="{l:T 'العربية'}" Tag="lang:ar" Click="Cmd"/>
+          <MenuItem Header="English" Tag="lang:en" Click="Cmd"/>
+          <MenuItem Header="{l:T 'تلقائي (حسب النظام)'}" Tag="lang:auto" Click="Cmd"/>
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="{l:T 'مساعدة'}">
         <MenuItem Header="{l:T 'دليل الاستخدام'}" Tag="help" Click="Cmd"/>
@@ -143,7 +150,7 @@
 
     <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="14,6">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Left" Text="{l:T 'الهاتف: غير مرتبط'}" Foreground="{StaticResource Muted}"/>
+        <TextBlock x:Name="PhoneText" DockPanel.Dock="Left" Text="{l:T 'الهاتف: غير مرتبط'}" Foreground="{StaticResource Muted}"/>
         <TextBlock x:Name="CountText" DockPanel.Dock="Right" Margin="0,0,24,0"/>
         <TextBlock x:Name="MsgText" Foreground="{StaticResource Primary}" Margin="24,0"/>
       </DockPanel>

@@ -1,0 +1,66 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
+using TwinMemory.Net;
+
+namespace TwinMemory;
+
+/// <summary>Shows a one-time pairing code and manages paired phones.</summary>
+public class PairWindow : Window
+{
+    readonly TextBlock _code = new() { FontSize = 38, FontWeight = FontWeights.Bold, FontFamily = new FontFamily("Consolas"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 4) };
+    readonly TextBlock _left = new() { HorizontalAlignment = HorizontalAlignment.Center, Foreground = Brushes.Gray };
+    readonly ListBox _devices = new() { MinHeight = 90, DisplayMemberPath = "Name" };
+    readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
+    DateTime _expires = DateTime.MinValue;
+
+    public PairWindow(Window owner)
+    {
+        Owner = owner; Title = S.T("ربط الهاتف"); Width = 500; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+        FlowDirection = owner.FlowDirection; WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
+
+        var addr = string.Join("   ", TwinServer.LocalAddresses().Select(a => $"{a}:{TwinServer.Port}"));
+        var info = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8), Text = S.T("الرمز صالح دقيقتين ويُستخدم مرة واحدة.\nعلى الهاتف: المزيد ← ربط الكمبيوتر، ثم أدخل العنوان والرمز.\nيجب أن يكون الجهازان على نفس الشبكة. اسمح لـ TwinMemory في جدار حماية Windows عند ظهور النافذة (الشبكة الخاصة).") };
+        var addrBox = new TextBox { Text = S.T("العنوان") + ": " + (addr.Length == 0 ? "—" : addr), IsReadOnly = true, Margin = new Thickness(0, 0, 0, 8), Padding = new Thickness(6) };
+        var err = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Text = App.ServerError == null ? "" : S.T("تعذّر تشغيل خادم الربط") + ": " + App.ServerError };
+
+        var newCode = new Button { Content = S.T("رمز جديد"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 8, 0) };
+        newCode.Click += (_, _) => Generate();
+        var remove = new Button { Content = S.T("إلغاء ربط المحدد"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 8, 0) };
+        remove.Click += (_, _) => { if (_devices.SelectedItem is Core.DeviceInfo d) { App.Db.DeleteDevice(d.Id); RefreshDevices(); } };
+        var close = new Button { Content = S.T("إغلاق"), IsCancel = true, Padding = new Thickness(10, 4, 10, 4) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        row.Children.Add(newCode); row.Children.Add(remove); row.Children.Add(close);
+
+        var panel = new StackPanel { Margin = new Thickness(18) };
+        panel.Children.Add(_code); panel.Children.Add(_left); panel.Children.Add(info); panel.Children.Add(addrBox); panel.Children.Add(err);
+        panel.Children.Add(new TextBlock { Text = S.T("الأجهزة المرتبطة"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 4) });
+        panel.Children.Add(_devices); panel.Children.Add(row);
+        Content = panel;
+
+        _timer.Tick += (_, _) =>
+        {
+            var s = (int)(_expires - DateTime.UtcNow).TotalSeconds;
+            if (s <= 0) { _code.Text = "— — — —"; _left.Text = S.T("منتهي"); } else _left.Text = $"{s / 60}:{s % 60:00}";
+        };
+        App.Server.DataChanged += OnData;
+        Closed += (_, _) => { _timer.Stop(); App.Server.DataChanged -= OnData; };
+        Loaded += (_, _) => { Generate(); RefreshDevices(); _timer.Start(); };
+    }
+
+    void OnData() => Dispatcher.Invoke(RefreshDevices);
+
+    void Generate()
+    {
+        var (code, exp) = App.Server.NewPairCode();
+        _expires = exp;
+        _code.Text = code[..4] + " " + code[4..];
+    }
+
+    void RefreshDevices()
+    {
+        _devices.ItemsSource = App.Db.Devices();
+        if (_devices.Items.Count == 0) _devices.ItemsSource = new[] { new Core.DeviceInfo("", S.T("لا توجد أجهزة مرتبطة"), "", 0, 0) };
+    }
+}

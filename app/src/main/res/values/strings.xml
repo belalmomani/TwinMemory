@@ -100,4 +100,28 @@
 • From any app: Share → TwinMemory.
 • Long-press an item to copy, move, share and more.
 • Deleted items stay in Trash until you delete them permanently.</string>
+    <string name="status_unpaired">Not paired</string>
+    <string name="st_pending">Queued</string>
+    <string name="st_waiting">Waiting for connection</string>
+    <string name="st_sending">Sending %1$d%%</string>
+    <string name="st_done">Sent and verified</string>
+    <string name="st_failed">Failed</string>
+    <string name="retry">Retry</string>
+    <string name="send_to_pc">Send to computer</string>
+    <string name="pair_title">Pair computer</string>
+    <string name="pair_host">Computer address (IP)</string>
+    <string name="pair_port">Port</string>
+    <string name="pair_code">Pairing code</string>
+    <string name="pair_btn">Pair</string>
+    <string name="discover">Find automatically</string>
+    <string name="paired_with">Paired with %1$s</string>
+    <string name="unpair">Unpair</string>
+    <string name="pair_help">On the computer: Tools → Pair phone, then enter the address and code shown. Both devices must be on the same network.</string>
+    <string name="msg_paired">Paired</string>
+    <string name="msg_pair_bad_code">Wrong or expired code</string>
+    <string name="msg_pair_unreachable">Could not reach the computer. Check the network and firewall.</string>
+    <string name="msg_queued">Added to transfer queue</string>
+    <string name="msg_need_pair">Pair your computer first (More → Pair computer)</string>
+    <string name="msg_unpaired_remote">The computer removed the pairing</string>
+    <string name="none_found">No computer found, enter the address manually</string>
 </resources>

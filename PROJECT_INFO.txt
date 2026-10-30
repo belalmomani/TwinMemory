@@ -3,7 +3,7 @@
 اسم الحزمة: com.belalmomani.twinmemory
 رقم الإصدار: 1.0.0
 Version Code: 1
-تاريخ ووقت إنشاء هذه الحزمة: 2026-10-29 21:54:21 UTC (UTC+0000)
-المرحلة: 3 + نسخة Windows الأولى (WPF/.NET 8) — لم يُبنَ أي ملف تنفيذي بعد ولم يُختبر
+تاريخ ووقت إنشاء هذه الحزمة: 2026-10-30 10:47:16 UTC (UTC+0000)
+المرحلة: 4أ (ربط Android↔Windows ونقل هاتف→كمبيوتر) — لم يُبنَ ولم يُختبر على جهازين بعد
 المشروع: TwinMemory
 مستودع GitHub: https://github.com/belalmomani/TwinMemory.git

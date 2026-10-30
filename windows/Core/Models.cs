@@ -43,3 +43,28 @@ public class Filter
     public string? FolderId;
     public string? Search;
 }
+
+public record DeviceInfo(string Id, string Name, string TokenHash, long PairedAt, long LastSeen);
+
+public class Transfer
+{
+    public string Id { get; set; } = "";
+    public string DeviceId { get; set; } = "";
+    public string DeviceName { get; set; } = "";
+    public string Direction { get; set; } = "in";
+    public string Kind { get; set; } = "FILE";
+    public string Title { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public string Mime { get; set; } = "";
+    public long Size { get; set; }
+    public string Sha256 { get; set; } = "";
+    public string State { get; set; } = "receiving";
+    public string? ItemId { get; set; }
+    public string? Error { get; set; }
+    public long Started { get; set; }
+    public long Finished { get; set; }
+
+    public string StateLabel => S.T(State switch { "done" => "تم — تحقّق الكمبيوتر من سلامة الملف", "failed" => "فشل", _ => "قيد الاستلام" });
+    public string SizeText => Size <= 0 ? "" : Size < 1048576 ? $"{Size / 1024.0:0.#} KB" : $"{Size / 1048576.0:0.#} MB";
+    public string DateText => DateTimeOffset.FromUnixTimeMilliseconds(Started).LocalDateTime.ToString("g");
+}

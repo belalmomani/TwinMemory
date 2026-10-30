@@ -34,6 +34,18 @@ public class FileStore
         catch { Delete(id); throw; }
     }
 
+    /// <summary>Moves an already verified file (same volume) into item storage without copying it again.</summary>
+    public Stored Adopt(string id, string name, string sourcePath, long size, string sha256)
+    {
+        var safe = Classify.SanitizeFileName(name);
+        var dir = Path.Combine(_root, id);
+        Directory.CreateDirectory(dir);
+        var dest = Path.GetFullPath(Path.Combine(dir, safe));
+        if (!dest.StartsWith(_root + Path.DirectorySeparatorChar)) throw new IOException("bad path");
+        File.Move(sourcePath, dest);
+        return new Stored(id + "/" + safe, size, sha256);
+    }
+
     public string? PathFor(string? rel)
     {
         if (rel == null) return null;

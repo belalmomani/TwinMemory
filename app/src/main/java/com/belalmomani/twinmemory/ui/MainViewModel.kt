@@ -1,6 +1,7 @@
 package com.belalmomani.twinmemory.ui
 
 import android.app.Application
+import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import androidx.annotation.StringRes
@@ -14,6 +15,11 @@ import com.belalmomani.twinmemory.data.db.ItemEntity
 import com.belalmomani.twinmemory.domain.Classify
 import com.belalmomani.twinmemory.domain.ItemKind
 import com.belalmomani.twinmemory.domain.SortBy
+import com.belalmomani.twinmemory.net.Discovery
+import com.belalmomani.twinmemory.net.Pairing
+import com.belalmomani.twinmemory.net.PcClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,6 +30,8 @@ fun sortItems(l: List<ItemEntity>, s: SortBy): List<ItemEntity> = when (s) {
     SortBy.SIZE -> l.sortedByDescending { it.sizeBytes }
     SortBy.TYPE -> l.sortedWith(compareBy({ it.kind }, { it.title.lowercase() }))
 }
+
+enum class Conn { UNPAIRED, OFFLINE, ONLINE }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -47,6 +55,61 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val trash = repo.trash().keep(emptyList())
     val tags = repo.tags().map { l -> l.groupBy({ it.itemId }, { it.tag }) }.keep(emptyMap())
     val totalSize = repo.totalSize().map { it ?: 0L }.keep(0L)
+
+    // ---- computer connection (Phase 4) ----
+    private val tapp = getApplication<TwinMemoryApp>()
+    val conn = MutableStateFlow(Conn.UNPAIRED)
+    val pcName = MutableStateFlow(tapp.pairing.load()?.pcName)
+    val transfersList = tapp.transfers.observe().keep(emptyList())
+    val found = MutableStateFlow<List<Discovery.Found>>(emptyList())
+    val busy = MutableStateFlow(false)
+
+    init {
+        if (tapp.pairing.load() != null) tapp.transfers.kick()
+        viewModelScope.launch(Dispatchers.IO) { while (true) { pingOnce(); delay(8000) } }
+    }
+
+    private fun client(p: Pairing) = PcClient(p.host, p.port, p.pin, p.token, p.deviceId)
+
+    private suspend fun pingOnce() {
+        val p = tapp.pairing.load()
+        if (p == null) { conn.value = Conn.UNPAIRED; pcName.value = null; return }
+        pcName.value = p.pcName
+        conn.value = try {
+            if (client(p).ping()) Conn.ONLINE else Conn.OFFLINE
+        } catch (e: PcClient.HttpError) {
+            if (e.code == 401 || e.code == 403) { tapp.pairing.clear(); msgs.tryEmit(R.string.msg_unpaired_remote); Conn.UNPAIRED } else Conn.OFFLINE
+        } catch (e: Exception) { Conn.OFFLINE }
+        if (conn.value == Conn.ONLINE) tapp.transfers.kickIfIdleWithWork()
+    }
+
+    fun pair(host: String, port: Int, code: String) = viewModelScope.launch(Dispatchers.IO) {
+        busy.value = true
+        try {
+            val h = host.trim()
+            val r = PcClient(h, port, null, null, tapp.pairing.deviceId).pair(code, Build.MODEL ?: "Android")
+            tapp.pairing.save(Pairing(h, port, r.fingerprint, r.token, r.pcName, tapp.pairing.deviceId))
+            msgs.tryEmit(R.string.msg_paired)
+            pingOnce(); tapp.transfers.kick()
+        } catch (e: PcClient.HttpError) {
+            msgs.tryEmit(if (e.code == 403) R.string.msg_pair_bad_code else R.string.msg_pair_unreachable)
+        } catch (e: Exception) { msgs.tryEmit(R.string.msg_pair_unreachable) }
+        finally { busy.value = false }
+    }
+
+    fun unpair() = viewModelScope.launch(Dispatchers.IO) {
+        tapp.pairing.load()?.let { runCatching { client(it).unpair() } } // best effort; the computer may be off
+        tapp.pairing.clear(); conn.value = Conn.UNPAIRED; pcName.value = null
+    }
+
+    fun discover() = viewModelScope.launch { found.value = Discovery.find(); if (found.value.isEmpty()) msgs.tryEmit(R.string.none_found) }
+
+    fun sendToPc(list: List<ItemEntity>) = viewModelScope.launch {
+        if (tapp.pairing.load() == null) { msgs.tryEmit(R.string.msg_need_pair); return@launch }
+        tapp.transfers.enqueue(list); msgs.tryEmit(R.string.msg_queued)
+    }
+
+    fun retry(id: String) = viewModelScope.launch { tapp.transfers.retry(id) }
 
     private fun report(r: SaveResult) {
         msgs.tryEmit(when (r) { SaveResult.OK -> R.string.msg_saved; SaveResult.DUPLICATE -> R.string.msg_duplicate; SaveResult.FAILED -> R.string.msg_save_failed })
