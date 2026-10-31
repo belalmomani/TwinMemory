@@ -79,6 +79,7 @@ public static class S
         ["الخادم لا يعمل"] = "Server is not running",
         ["سجل الخادم"] = "Server log",
         ["طُلبت إضافة قاعدة جدار الحماية — وافق على طلب المدير ثم أعد المحاولة من الهاتف"] = "Firewall rule requested — approve the administrator prompt, then retry from the phone",
+        ["تشغيل مع بدء Windows"] = "Start with Windows",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

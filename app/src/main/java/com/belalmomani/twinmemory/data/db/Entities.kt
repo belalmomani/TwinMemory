@@ -49,3 +49,7 @@ data class TransferEntity(
     val createdAt: Long,
     val updatedAt: Long,
 )
+
+/** Maps a file inside the user-chosen phone folder (relative path) to the item it mirrors, so our own writes are never re-imported. */
+@Entity(tableName = "mirror_map")
+data class MirrorEntry(@PrimaryKey val path: String, val itemId: String, val size: Long)

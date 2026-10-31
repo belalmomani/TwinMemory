@@ -17,6 +17,8 @@ interface ItemDao {
     )
     fun observe(useFolder: Int, folderId: String?, kind: String?, favOnly: Int, pattern: String?): Flow<List<ItemEntity>>
 
+    @Query("SELECT * FROM items WHERE trashedAt IS NULL AND id NOT IN (SELECT itemId FROM mirror_map)") suspend fun unmirrored(): List<ItemEntity>
+    @Query("SELECT * FROM items WHERE sourceDevice = 'phone' AND trashedAt IS NULL AND id NOT IN (SELECT itemId FROM transfers)") suspend fun unsent(): List<ItemEntity>
     @Query("SELECT * FROM items WHERE trashedAt IS NOT NULL ORDER BY trashedAt DESC") fun observeTrash(): Flow<List<ItemEntity>>
     @Query("SELECT * FROM items WHERE id = :id") suspend fun get(id: String): ItemEntity?
     @Insert suspend fun insert(item: ItemEntity)
@@ -35,6 +37,7 @@ interface ItemDao {
 @Dao
 interface FolderDao {
     @Query("SELECT * FROM folders ORDER BY name COLLATE NOCASE") fun observe(): Flow<List<FolderEntity>>
+    @Query("SELECT * FROM folders") suspend fun list(): List<FolderEntity>
     @Insert suspend fun insert(folder: FolderEntity)
     @Query("UPDATE folders SET name = :name WHERE id = :id") suspend fun rename(id: String, name: String)
 }
@@ -50,4 +53,10 @@ interface TransferDao {
     @Query("UPDATE transfers SET state = 'PENDING' WHERE state = 'SENDING'") suspend fun resetSending()
     @Query("SELECT COUNT(*) FROM transfers WHERE itemId = :itemId AND state IN ('PENDING','WAITING','SENDING')") suspend fun activeFor(itemId: String): Int
     @Query("UPDATE transfers SET state = 'PENDING', error = NULL, updatedAt = :n WHERE id = :id") suspend fun retry(id: String, n: Long)
+}
+
+@Dao
+interface MirrorDao {
+    @Query("SELECT * FROM mirror_map") suspend fun all(): List<MirrorEntry>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(e: MirrorEntry)
 }

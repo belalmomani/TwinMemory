@@ -126,4 +126,10 @@
     <string name="none_found">لم يُعثر على كمبيوتر، أدخل العنوان يدويًا</string>
     <string name="msg_received">وصلت عناصر جديدة من الكمبيوتر</string>
     <string name="test_conn">اختبار الاتصال</string>
+    <string name="folder_title">مجلد المزامنة على الهاتف</string>
+    <string name="folder_none">لم يُحدَّد بعد. اختر (أو أنشئ) مجلدًا مثل Documents/TwinMemory.</string>
+    <string name="folder_note">كل ما يُحفظ في التطبيق يُكتب في هذا المجلد، وكل ملف تضعه فيه يُضاف تلقائيًا ويُرسل إلى الكمبيوتر. لا يُحذف شيء ولا يُستبدل.</string>
+    <string name="folder_pick">اختيار المجلد</string>
+    <string name="folder_clear">إيقاف</string>
+    <string name="msg_folder_set">تم تحديد المجلد</string>
 </resources>

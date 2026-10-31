@@ -85,6 +85,7 @@
         <MenuItem Header="{l:T 'قائمة النقل'}" Tag="transfers" Click="Cmd"/>
         <MenuItem Header="{l:T 'فتح مجلد TwinMemory في المستكشف'}" Tag="openfolder" Click="Cmd"/>
         <MenuItem Header="{l:T 'مزامنة المجلد الآن'}" Tag="syncnow" Click="Cmd"/>
+        <MenuItem x:Name="AutoStartItem" Header="{l:T 'تشغيل مع بدء Windows'}" IsCheckable="True" Tag="autostart" Click="Cmd"/>
         <MenuItem Header="{l:T 'سلة المحذوفات'}" Tag="trashview" Click="Cmd"/>
         <Separator/>
         <MenuItem Header="{l:T 'اللغة'}">

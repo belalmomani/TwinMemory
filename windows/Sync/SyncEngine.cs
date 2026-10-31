@@ -29,6 +29,8 @@ public class SyncEngine : IDisposable
     public string Root { get; }
     public event Action? Changed;
     public event Action<string>? Message;
+    /// <summary>Runs at the end of every pass (used to queue new items for paired phones).</summary>
+    public Action? AfterPass { get; set; }
 
     public SyncEngine(Database db, FileStore store, string dataDir)
     {
@@ -293,6 +295,7 @@ public class SyncEngine : IDisposable
         }
 
         if (changed) Say(S.T("تمت مزامنة المجلد"));
+        try { AfterPass?.Invoke(); } catch { }
         return new Result(changed, retry);
     }
 

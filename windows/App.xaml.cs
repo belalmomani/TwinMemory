@@ -15,6 +15,23 @@ public partial class App : Application
     public static SyncEngine Mirror = null!;
     public static string DataDir = "";
     public static string? ServerError;
+    const long AutoMaxBytes = 500L * 1024 * 1024; // larger files are not pushed automatically (send them manually)
+
+    /// <summary>Auto-sync PC → phone: every PC-origin item is queued once for each paired phone. Phone-origin items are never echoed back.</summary>
+    public static void AutoQueue()
+    {
+        try
+        {
+            foreach (var d in Db.Devices())
+                foreach (var it in Db.ItemsNeedingOutbox(d.Id, AutoMaxBytes))
+                    Db.InsertTransfer(new Core.Transfer
+                    {
+                        Id = Guid.NewGuid().ToString(), DeviceId = d.Id, Direction = "out", Kind = it.Kind, Title = it.Title, FileName = it.FileName ?? "",
+                        Mime = it.Mime ?? "", Size = it.Size, Sha256 = it.Sha256 ?? "", State = "queued", ItemId = it.Id, Started = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    });
+        }
+        catch { }
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -35,8 +52,11 @@ public partial class App : Application
             Store = new FileStore(Path.Combine(DataDir, "items"));
             Server = new TwinServer(Db, Store, DataDir);
             Mirror = new SyncEngine(Db, Store, DataDir);
+            Mirror.AfterPass = AutoQueue;
             Server.DataChanged += () => Mirror.Trigger();
-            new MainWindow().Show();
+            var win = new MainWindow();
+            if (e.Args.Contains("--minimized")) win.WindowState = WindowState.Minimized;
+            win.Show();
             Mirror.Start();
             _ = Task.Run(async () => { try { await Server.StartAsync(); } catch (Exception ex) { ServerError = ex.Message; } });
         }

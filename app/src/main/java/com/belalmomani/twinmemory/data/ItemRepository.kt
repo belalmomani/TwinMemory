@@ -46,8 +46,10 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
         }.fold({ SaveResult.OK }, { SaveResult.FAILED })
     }
 
-    /** Copies the picked/shared content into app storage immediately; never touches the original. */
-    suspend fun importUri(uri: Uri, folderId: String?, device: String = "phone"): SaveResult = withContext(Dispatchers.IO) {
+    suspend fun importUri(uri: Uri, folderId: String?, device: String = "phone"): SaveResult = importUriId(uri, folderId, device).first
+
+    /** Copies the picked/shared content into app storage immediately; never touches the original. Also returns the new item id. */
+    suspend fun importUriId(uri: Uri, folderId: String?, device: String = "phone"): Pair<SaveResult, String?> = withContext(Dispatchers.IO) {
         val id = newId()
         try {
             var name = "file"
@@ -56,7 +58,7 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
             }
             val mime = ctx.contentResolver.getType(uri)
             val stored = ctx.contentResolver.openInputStream(uri)?.use { store.store(id, name, it) }
-                ?: return@withContext SaveResult.FAILED
+                ?: return@withContext SaveResult.FAILED to null
             val dup = items.countSha(stored.sha256) > 0
             val ts = now()
             try {
@@ -64,11 +66,17 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
                     ItemEntity(id, Classify.kindFromMime(mime, name).name, name, null, name, mime, stored.size,
                         stored.sha256, stored.relPath, device, folderId, false, ts, ts, null)
                 )
-            } catch (e: Exception) { store.delete(id); return@withContext SaveResult.FAILED }
-            if (dup) SaveResult.DUPLICATE else SaveResult.OK
+            } catch (e: Exception) { store.delete(id); return@withContext SaveResult.FAILED to null }
+            (if (dup) SaveResult.DUPLICATE else SaveResult.OK) to id
         } catch (e: Exception) { // includes IOException (e.g. storage full); existing items are never touched
-            store.delete(id); SaveResult.FAILED
+            store.delete(id); SaveResult.FAILED to null
         }
+    }
+
+    suspend fun addFolder(name: String): String {
+        val id = newId()
+        folderDao.insert(FolderEntity(id, name, null, now()))
+        return id
     }
 
     suspend fun createFolder(name: String) { val n = name.trim(); if (n.isNotEmpty()) folderDao.insert(FolderEntity(newId(), n, null, now())) }

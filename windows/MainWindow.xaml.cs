@@ -47,6 +47,7 @@ public partial class MainWindow : Window
         t.Tick += (_, _) => UpdatePhone();
         t.Start();
         UpdatePhone();
+        AutoStartItem.IsChecked = IsAutoStart();
         App.Mirror.Changed += () => Dispatcher.BeginInvoke(new Action(Refresh));
         App.Mirror.Message += m => Dispatcher.BeginInvoke(new Action(() => Status(m)));
     }
@@ -359,7 +360,24 @@ public partial class MainWindow : Window
     }
 
     // ---- events ----
-    void Cmd(object sender, RoutedEventArgs e) { if ((sender as FrameworkElement)?.Tag is string t) Run(t); }
+    const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    static bool IsAutoStart() { using var k = Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("TwinMemory") != null; }
+    static void SetAutoStart(bool on)
+    {
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(RunKey, true);
+            if (k == null) return;
+            if (on) k.SetValue("TwinMemory", $"\"{Environment.ProcessPath}\" --minimized"); else k.DeleteValue("TwinMemory", false);
+        }
+        catch { }
+    }
+
+    void Cmd(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: "autostart" } mi) { SetAutoStart(mi.IsChecked); return; }
+        if ((sender as FrameworkElement)?.Tag is string t) Run(t);
+    }
 
     void Nav_Changed(object sender, SelectionChangedEventArgs e)
     {

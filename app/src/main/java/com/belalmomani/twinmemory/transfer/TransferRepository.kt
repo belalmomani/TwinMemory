@@ -27,6 +27,12 @@ class TransferRepository(private val ctx: Context, private val db: AppDatabase) 
         return n
     }
 
+    /** Auto-sync phone → computer: every phone-origin item that was never queued gets queued once. */
+    suspend fun enqueueNewPhoneItems() {
+        val l = db.items().unsent()
+        if (l.isNotEmpty()) enqueue(l)
+    }
+
     suspend fun retry(id: String) { dao.retry(id, System.currentTimeMillis()); kick() }
 
     /** Restart the worker when the computer is reachable and nothing is mid-transfer. */

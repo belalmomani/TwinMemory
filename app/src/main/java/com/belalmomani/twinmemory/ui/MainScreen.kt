@@ -66,6 +66,8 @@ fun MainScreen(vm: MainViewModel) {
     val sort by vm.sort.collectAsStateWithLifecycle()
     val openFolder by vm.openFolder.collectAsStateWithLifecycle()
     val conn by vm.conn.collectAsStateWithLifecycle()
+    val mirror by vm.mirrorName.collectAsStateWithLifecycle()
+    val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u -> if (u != null) vm.setMirrorFolder(u) }
     val queue by vm.transfersList.collectAsStateWithLifecycle()
 
     val acts = ItemActions(
@@ -161,7 +163,7 @@ fun MainScreen(vm: MainViewModel) {
                     }
                     ItemList(inFolder, R.string.folder_items_empty, acts, Modifier.weight(1f))
                 }
-                else -> MoreScreen(Formatter.formatShortFileSize(ctx, total), onPair = { route = "pair" }) { showTrash = true }
+                else -> MoreScreen(Formatter.formatShortFileSize(ctx, total), onPair = { route = "pair" }, mirror = mirror, onPick = { treePicker.launch(null) }, onClear = { vm.clearMirrorFolder() }) { showTrash = true }
             }
         }
     }
@@ -245,13 +247,24 @@ private fun TrashScreen(trash: List<ItemEntity>, onBack: () -> Unit, onRestore: 
 }
 
 @Composable
-private fun MoreScreen(used: String, onPair: () -> Unit, onTrash: () -> Unit) {
+private fun MoreScreen(used: String, onPair: () -> Unit, mirror: String?, onPick: () -> Unit, onClear: () -> Unit, onTrash: () -> Unit) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.nav_more), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Card(colors = CardDefaults.cardColors(containerColor = TM.Surface), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.storage_used, used), fontWeight = FontWeight.SemiBold)
                 Text(stringResource(R.string.storage_note), color = TM.Muted)
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = TM.Surface), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.folder_title), fontWeight = FontWeight.SemiBold)
+                Text(if (mirror == null) stringResource(R.string.folder_none) else mirror, color = TM.Muted)
+                Text(stringResource(R.string.folder_note), color = TM.Muted, style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onPick) { Text(stringResource(R.string.folder_pick)) }
+                    if (mirror != null) OutlinedButton(onClear) { Text(stringResource(R.string.folder_clear)) }
+                }
             }
         }
         Button(onPair, Modifier.fillMaxWidth()) { Text(stringResource(R.string.pair_title)) }

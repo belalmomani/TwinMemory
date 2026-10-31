@@ -233,6 +233,28 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
         };
     }
 
+    /// <summary>PC-origin items not yet queued for this phone (auto-sync). Large files above maxBytes are left for manual sending.</summary>
+    public List<Item> ItemsNeedingOutbox(string deviceId, long maxBytes)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $@"SELECT {Cols} FROM items WHERE source='pc' AND trashed IS NULL
+ AND (kind IN ('TEXT','LINK') OR (rel_path IS NOT NULL AND size <= $max))
+ AND NOT EXISTS (SELECT 1 FROM transfers t WHERE t.item_id = items.id AND t.device_id = $d AND t.direction = 'out')";
+        cmd.Parameters.AddWithValue("$d", deviceId); cmd.Parameters.AddWithValue("$max", maxBytes);
+        var list = new List<Item>(); using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+            list.Add(new Item
+            {
+                Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
+                Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
+                Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14),
+            });
+        }
+        return list;
+    }
+
     // ---- Explorer folder mirror ----
     public List<SyncEntry> GetMaps()
     {

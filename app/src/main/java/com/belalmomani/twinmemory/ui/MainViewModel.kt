@@ -1,9 +1,10 @@
 package com.belalmomani.twinmemory.ui
 
 import android.app.Application
-import android.os.Build
-import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import androidx.documentfile.provider.DocumentFile
+import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.AndroidViewModel
@@ -65,6 +66,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val found = MutableStateFlow<List<Discovery.Found>>(emptyList())
     val busy = MutableStateFlow(false)
     val diag = MutableStateFlow("")
+    val mirrorName = MutableStateFlow(tapp.mirrorPrefs.treeUri?.let { DocumentFile.fromTreeUri(tapp, Uri.parse(it))?.name })
+
+    fun setMirrorFolder(uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        try { tapp.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (e: Exception) { }
+        val cats = listOf(R.string.cat_texts, R.string.cat_links, R.string.cat_photos, R.string.cat_files).map { tapp.getString(it) }
+        tapp.mirrorPrefs.save(uri.toString(), cats)
+        mirrorName.value = DocumentFile.fromTreeUri(tapp, uri)?.name
+        msgs.tryEmit(R.string.msg_folder_set)
+        try { tapp.sync.cycle(tapp.pairing.load() != null, null) } catch (e: Exception) { }
+    }
+
+    fun clearMirrorFolder() { tapp.mirrorPrefs.clear(); mirrorName.value = null }
 
     /** Accepts "192.168.1.5", "192.168.1.5:47821" or "https://192.168.1.5:47821/". */
     private fun parseHost(raw: String, defPort: Int): Pair<String, Int> {
@@ -98,17 +111,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun pingOnce() {
         val p = tapp.pairing.load()
-        if (p == null) { conn.value = Conn.UNPAIRED; pcName.value = null; return }
+        if (p == null) {
+            conn.value = Conn.UNPAIRED; pcName.value = null
+            try { tapp.sync.cycle(false, null) } catch (e: Exception) { }
+            return
+        }
         pcName.value = p.pcName
         conn.value = try {
             if (client(p).ping()) Conn.ONLINE else Conn.OFFLINE
         } catch (e: PcClient.HttpError) {
             if (e.code == 401 || e.code == 403) { tapp.pairing.clear(); msgs.tryEmit(R.string.msg_unpaired_remote); Conn.UNPAIRED } else Conn.OFFLINE
         } catch (e: Exception) { Conn.OFFLINE }
-        if (conn.value == Conn.ONLINE) {
-            tapp.transfers.kickIfIdleWithWork()
-            try { if (InboxSync(tapp).run(client(p)) > 0) msgs.tryEmit(R.string.msg_received) } catch (e: Exception) { /* offline or transient: retried on the next cycle */ }
-        }
+        val n = try { tapp.sync.cycle(true, if (conn.value == Conn.ONLINE) client(p) else null) } catch (e: Exception) { 0 }
+        if (n > 0) msgs.tryEmit(R.string.msg_received)
     }
 
     fun pair(host: String, port: Int, code: String) = viewModelScope.launch(Dispatchers.IO) {
@@ -144,8 +159,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun report(r: SaveResult) {
         msgs.tryEmit(when (r) { SaveResult.OK -> R.string.msg_saved; SaveResult.DUPLICATE -> R.string.msg_duplicate; SaveResult.FAILED -> R.string.msg_save_failed })
     }
-    fun saveText(t: String) = viewModelScope.launch { report(repo.saveText(t, openFolder.value)) }
-    fun importUri(u: Uri) = viewModelScope.launch { report(repo.importUri(u, openFolder.value)) }
+    private suspend fun autoSend() { if (tapp.pairing.load() != null) tapp.transfers.enqueueNewPhoneItems() }
+    fun saveText(t: String) = viewModelScope.launch { report(repo.saveText(t, openFolder.value)); autoSend() }
+    fun importUri(u: Uri) = viewModelScope.launch { report(repo.importUri(u, openFolder.value)); autoSend() }
     fun handleShare(i: Intent) {
         when (i.action) {
             Intent.ACTION_SEND -> {
