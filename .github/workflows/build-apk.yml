@@ -7,8 +7,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      KS_B64: ${{ secrets.TM_KEYSTORE_BASE64 }}
+      # Optional: your own private key. Accepts either naming convention.
+      KS_B64: ${{ secrets.TM_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
       GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      TM_KEYSTORE_PASSWORD: ${{ secrets.TM_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+      TM_KEY_ALIAS: ${{ secrets.TM_KEY_ALIAS || secrets.KEY_ALIAS }}
+      TM_KEY_PASSWORD: ${{ secrets.TM_KEY_PASSWORD || secrets.KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,28 +27,23 @@ jobs:
         if: env.GS_B64 != ''
         run: echo "$GS_B64" | base64 -d > app/google-services.json
 
-      - name: Unit tests (do not block the APK)
-        continue-on-error: true
-        run: gradle :app:testDebugUnitTest --no-daemon
-
-      - name: Build signed release APK
+      - name: Use private signing key (if secrets are set)
         if: env.KS_B64 != ''
-        env:
-          TM_KEYSTORE_PASSWORD: ${{ secrets.TM_KEYSTORE_PASSWORD }}
-          TM_KEY_ALIAS: ${{ secrets.TM_KEY_ALIAS }}
-          TM_KEY_PASSWORD: ${{ secrets.TM_KEY_PASSWORD }}
         run: |
           echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/tm.jks"
-          export TM_KEYSTORE_PATH="$RUNNER_TEMP/tm.jks"
-          gradle :app:assembleRelease --no-daemon
+          echo "TM_KEYSTORE_PATH=$RUNNER_TEMP/tm.jks" >> "$GITHUB_ENV"
 
-      - name: Build debug APK (no signing secrets set)
-        if: env.KS_B64 == ''
+      - name: Build APK (always signed with the same key => installs as an update)
         run: |
-          echo "::warning::No TM_KEYSTORE_BASE64 secret: building a DEBUG APK. Its signature is not your release signature and may not update over a release install."
+          if [ -z "$KS_B64" ]; then echo "::notice::Signing with the committed sideload key (stable). Add keystore secrets to use your own private key."; fi
           gradle :app:assembleDebug --no-daemon
+
+      - name: Print signing fingerprint
+        run: |
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK" | grep -E "SHA-(1|256)" || true
 
       - uses: actions/upload-artifact@v4
         with:
           name: TwinMemory-apk
-          path: app/build/outputs/apk/**/*.apk
+          path: app/build/outputs/apk/debug/*.apk

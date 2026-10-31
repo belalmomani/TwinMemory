@@ -29,23 +29,31 @@ android {
         resourceConfigurations += listOf("ar", "en")
     }
 
+    // One stable signing identity for every build, so each new APK installs as an UPDATE over the previous one (data kept).
+    // Secrets (TM_KEYSTORE_* or keystore.properties) override it; otherwise the committed sideload key is used.
     signingConfigs {
-        val path = sign("storeFile", "TM_KEYSTORE_PATH")
-        if (path != null) {
-            create("release") {
+        create("tm") {
+            val path = sign("storeFile", "TM_KEYSTORE_PATH")
+            if (path != null) {
                 storeFile = file(path)
                 storePassword = sign("storePassword", "TM_KEYSTORE_PASSWORD")
                 keyAlias = sign("keyAlias", "TM_KEY_ALIAS")
                 keyPassword = sign("keyPassword", "TM_KEY_PASSWORD")
+            } else {
+                storeFile = file("sideload.keystore")
+                storePassword = "twinmemory"
+                keyAlias = "twinmemory"
+                keyPassword = "twinmemory"
             }
         }
     }
 
     buildTypes {
+        debug { signingConfig = signingConfigs.getByName("tm") }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfigs.findByName("release")?.let { signingConfig = it }
+            signingConfig = signingConfigs.getByName("tm")
         }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

@@ -15,3 +15,6 @@ bin/
 obj/
 publish/
 *.user
+
+# the stable sideload key must be tracked so every build is an update
+!app/sideload.keystore
