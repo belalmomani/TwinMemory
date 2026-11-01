@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -163,7 +164,7 @@ fun MainScreen(vm: MainViewModel) {
                     }
                     ItemList(inFolder, R.string.folder_items_empty, acts, Modifier.weight(1f))
                 }
-                else -> MoreScreen(Formatter.formatShortFileSize(ctx, total), onPair = { route = "pair" }, mirror = mirror, onPick = { treePicker.launch(null) }, onClear = { vm.clearMirrorFolder() }) { showTrash = true }
+                else -> MoreScreen(Formatter.formatShortFileSize(ctx, total), onPair = { route = "pair" }, mirror = mirror, onPick = { treePicker.launch(null) }, onClear = { vm.clearMirrorFolder() }, update = { UpdateCard(vm) }) { showTrash = true }
             }
         }
     }
@@ -247,8 +248,8 @@ private fun TrashScreen(trash: List<ItemEntity>, onBack: () -> Unit, onRestore: 
 }
 
 @Composable
-private fun MoreScreen(used: String, onPair: () -> Unit, mirror: String?, onPick: () -> Unit, onClear: () -> Unit, onTrash: () -> Unit) {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun MoreScreen(used: String, onPair: () -> Unit, mirror: String?, onPick: () -> Unit, onClear: () -> Unit, update: @Composable () -> Unit, onTrash: () -> Unit) {
+    Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.nav_more), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Card(colors = CardDefaults.cardColors(containerColor = TM.Surface), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -268,6 +269,7 @@ private fun MoreScreen(used: String, onPair: () -> Unit, mirror: String?, onPick
             }
         }
         Button(onPair, Modifier.fillMaxWidth()) { Text(stringResource(R.string.pair_title)) }
+        update()
         OutlinedButton(onTrash, Modifier.fillMaxWidth()) { Icon(Icons.Filled.Delete, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.trash)) }
         Text(stringResource(R.string.version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), color = TM.Muted)
     }

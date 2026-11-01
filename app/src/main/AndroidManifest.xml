@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- INTERNET is used only for direct TLS connections to your own paired computer on the local network. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Needed only so the in-app updater can hand the verified APK to the system installer (user still confirms). Remove for a Play Store build. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:name=".TwinMemoryApp"
         android:allowBackup="false"

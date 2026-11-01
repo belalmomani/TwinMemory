@@ -132,4 +132,23 @@
     <string name="folder_pick">اختيار المجلد</string>
     <string name="folder_clear">إيقاف</string>
     <string name="msg_folder_set">تم تحديد المجلد</string>
+    <string name="upd_title">التحديثات</string>
+    <string name="upd_check">التحقق من التحديثات</string>
+    <string name="upd_checking">جارٍ التحقق…</string>
+    <string name="upd_uptodate">أنت على أحدث إصدار</string>
+    <string name="upd_available">يتوفر إصدار %1$s</string>
+    <string name="upd_size">حجم التحديث: %1$s</string>
+    <string name="upd_notes_title">ما الجديد</string>
+    <string name="upd_now">التحديث الآن</string>
+    <string name="upd_downloading">جارٍ التنزيل %1$d%%</string>
+    <string name="upd_ready">تم التنزيل والتحقق من السلامة والتوقيع. سيُثبَّت فوق نسختك وتبقى بياناتك كما هي.</string>
+    <string name="upd_install">تثبيت</string>
+    <string name="upd_check_failed">تعذّر التحقق من التحديثات (تأكد من الشبكة، أو أنه لم يُنشر إصدار بعد)</string>
+    <string name="upd_download_failed">فشل التنزيل</string>
+    <string name="upd_bad_hash">الملف المُنزَّل لا يطابق البصمة المنشورة؛ لم يُثبَّت</string>
+    <string name="upd_bad_signature">توقيع التحديث لا يطابق توقيع التطبيق؛ رُفض تثبيته</string>
+    <string name="upd_bad_package">الملف ليس تحديثًا لهذا التطبيق؛ رُفض</string>
+    <string name="upd_bad_version">رقم إصدار الملف غير صحيح؛ رُفض</string>
+    <string name="upd_allow_install">اسمح لـ TwinMemory بتثبيت التطبيقات في الإعدادات التي فُتحت، ثم ارجع واضغط «تثبيت»</string>
+    <string name="msg_update_available">يتوفر تحديث جديد (المزيد ← التحديثات)</string>
 </resources>

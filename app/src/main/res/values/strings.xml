@@ -132,4 +132,23 @@
     <string name="folder_pick">Choose folder</string>
     <string name="folder_clear">Stop</string>
     <string name="msg_folder_set">Folder set</string>
+    <string name="upd_title">Updates</string>
+    <string name="upd_check">Check for updates</string>
+    <string name="upd_checking">Checking…</string>
+    <string name="upd_uptodate">You have the latest version</string>
+    <string name="upd_available">Version %1$s is available</string>
+    <string name="upd_size">Update size: %1$s</string>
+    <string name="upd_notes_title">What\'s new</string>
+    <string name="upd_now">Update now</string>
+    <string name="upd_downloading">Downloading %1$d%%</string>
+    <string name="upd_ready">Downloaded and verified (integrity and signature). It installs over your current app and your data stays.</string>
+    <string name="upd_install">Install</string>
+    <string name="upd_check_failed">Could not check for updates (check the network, or no release has been published yet)</string>
+    <string name="upd_download_failed">Download failed</string>
+    <string name="upd_bad_hash">The downloaded file does not match the published fingerprint; not installed</string>
+    <string name="upd_bad_signature">The update signature does not match this app; installation refused</string>
+    <string name="upd_bad_package">The file is not an update for this app; refused</string>
+    <string name="upd_bad_version">The file version number is wrong; refused</string>
+    <string name="upd_allow_install">Allow TwinMemory to install apps in the settings that opened, then come back and tap Install</string>
+    <string name="msg_update_available">A new update is available (More → Updates)</string>
 </resources>

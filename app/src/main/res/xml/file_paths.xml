@@ -1,2 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths><files-path name="items" path="items/" /></paths>
+<paths><files-path name="items" path="items/" /><cache-path name="updates" path="updates/" /></paths>

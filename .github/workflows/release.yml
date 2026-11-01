@@ -1,0 +1,98 @@
+name: Release assets
+# Runs when YOU publish a Release on GitHub (tag like v1.2.0). It builds both apps and attaches them plus update.json,
+# which the in-app updaters read. It never creates or publishes a release by itself.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      KS_B64: ${{ secrets.TM_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+      TM_KEYSTORE_PASSWORD: ${{ secrets.TM_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+      TM_KEY_ALIAS: ${{ secrets.TM_KEY_ALIAS || secrets.KEY_ALIAS }}
+      TM_KEY_PASSWORD: ${{ secrets.TM_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+      GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: Optional google-services.json
+        if: env.GS_B64 != ''
+        run: echo "$GS_B64" | base64 -d > app/google-services.json
+      - name: Optional private signing key
+        if: env.KS_B64 != ''
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/tm.jks"
+          echo "TM_KEYSTORE_PATH=$RUNNER_TEMP/tm.jks" >> "$GITHUB_ENV"
+      - name: Build
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Describe APK
+        run: |
+          cp app/build/outputs/apk/debug/*.apk TwinMemory-android.apk
+          SHA=$(sha256sum TwinMemory-android.apk | cut -d' ' -f1)
+          SIZE=$(stat -c%s TwinMemory-android.apk)
+          VC=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts | head -1)
+          SIGNER=$("$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner" verify --print-certs TwinMemory-android.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+          echo "{\"versionCode\":$VC,\"sha256\":\"$SHA\",\"size\":$SIZE,\"signer\":\"$SIGNER\"}" > android-info.json
+          cat android-info.json
+      - run: gh release upload "${{ github.event.release.tag_name }}" TwinMemory-android.apk --clobber
+        env: { GH_TOKEN: "${{ github.token }}" }
+      - uses: actions/upload-artifact@v4
+        with: { name: android-info, path: android-info.json }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Publish
+        run: >
+          dotnet publish windows/TwinMemory.Windows.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
+      - name: Describe EXE
+        shell: bash
+        run: |
+          cp publish/TwinMemory.exe TwinMemory-windows.exe
+          SHA=$(sha256sum TwinMemory-windows.exe | cut -d' ' -f1)
+          SIZE=$(stat -c%s TwinMemory-windows.exe)
+          echo "{\"sha256\":\"$SHA\",\"size\":$SIZE}" > windows-info.json
+          cat windows-info.json
+      - run: gh release upload "${{ github.event.release.tag_name }}" TwinMemory-windows.exe --clobber
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-info, path: windows-info.json }
+
+  manifest:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: info }
+      - name: Build update.json
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          NOTES: ${{ github.event.release.body }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          a = json.load(open('info/android-info/android-info.json'))
+          w = json.load(open('info/windows-info/windows-info.json'))
+          tag = os.environ['TAG']; base = f"https://github.com/{os.environ['REPO']}/releases/download/{tag}"
+          m = {"version": tag.lstrip('v'), "notes": os.environ.get('NOTES', ''),
+               "android": {"versionCode": a['versionCode'], "url": f"{base}/TwinMemory-android.apk", "sha256": a['sha256'], "size": a['size'], "signerSha256": a['signer']},
+               "windows": {"url": f"{base}/TwinMemory-windows.exe", "sha256": w['sha256'], "size": w['size']}}
+          json.dump(m, open('update.json', 'w'), ensure_ascii=False, indent=1)
+          print(open('update.json').read())
+          PY
+      - run: gh release upload "${{ github.event.release.tag_name }}" update.json --clobber --repo "${{ github.repository }}"
+        env: { GH_TOKEN: "${{ github.token }}" }

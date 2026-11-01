@@ -96,6 +96,7 @@
       </MenuItem>
       <MenuItem Header="{l:T 'مساعدة'}">
         <MenuItem Header="{l:T 'دليل الاستخدام'}" Tag="help" Click="Cmd"/>
+        <MenuItem Header="{l:T 'التحقق من التحديثات…'}" Tag="update" Click="Cmd"/>
         <MenuItem Header="{l:T 'حول التطبيق'}" Tag="about" Click="Cmd"/>
       </MenuItem>
     </Menu>

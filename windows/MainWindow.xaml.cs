@@ -48,6 +48,7 @@ public partial class MainWindow : Window
         t.Start();
         UpdatePhone();
         AutoStartItem.IsChecked = IsAutoStart();
+        Loaded += async (_, _) => await AutoCheckUpdateAsync();
         App.Mirror.Changed += () => Dispatcher.BeginInvoke(new Action(Refresh));
         App.Mirror.Message += m => Dispatcher.BeginInvoke(new Action(() => Status(m)));
     }
@@ -339,6 +340,7 @@ public partial class MainWindow : Window
             case "trashview": _navKey = "trash"; BuildNav(); Refresh(); break;
             case "close": Close(); break;
             case "pair": new PairWindow(this).Show(); break;
+            case "update": new UpdateWindow(this).Show(); break;
             case "transfers": new TransfersWindow(this).Show(); break;
             case "openfolder":
                 try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{App.Mirror.Root}\"") { UseShellExecute = true }); } catch { Status(App.Mirror.Root); }
@@ -360,6 +362,15 @@ public partial class MainWindow : Window
     }
 
     // ---- events ----
+    /// <summary>Silent once-a-day check; only tells you in the status bar (once per version).</summary>
+    async Task AutoCheckUpdateAsync()
+    {
+        if (!Settings.ShouldCheckUpdates()) return;
+        var (info, _) = await Update.UpdateService.CheckAsync();
+        Settings.MarkUpdateChecked();
+        if (info != null && Settings.ShouldNotify(info.Version)) Status(S.T("يتوفر إصدار جديد") + " " + info.Version + " — " + S.T("مساعدة") + " ← " + S.T("التحقق من التحديثات…"));
+    }
+
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     static bool IsAutoStart() { using var k = Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue("TwinMemory") != null; }
     static void SetAutoStart(bool on)

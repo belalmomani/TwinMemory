@@ -11,6 +11,8 @@ public static class Settings
         public string Language { get; set; } = "ar";
         public string? SyncRoot { get; set; }
         public string[]? Cats { get; set; }
+        public long LastUpdateCheck { get; set; }
+        public string? NotifiedVersion { get; set; }
     }
 
     static readonly JsonSerializerOptions Opts = new() { PropertyNameCaseInsensitive = true, WriteIndented = true };
@@ -45,6 +47,10 @@ public static class Settings
     };
 
     static void Save() { try { File.WriteAllText(_path, JsonSerializer.Serialize(_d, Opts)); } catch { } }
+
+    public static bool ShouldCheckUpdates() => DateTimeOffset.UtcNow.ToUnixTimeSeconds() - _d.LastUpdateCheck > 24 * 3600;
+    public static void MarkUpdateChecked() { _d.LastUpdateCheck = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); Save(); }
+    public static bool ShouldNotify(string version) { if (_d.NotifiedVersion == version) return false; _d.NotifiedVersion = version; Save(); return true; }
 
     public static void SaveLanguage(string lang) { _d.Language = lang; Save(); Apply(); }
 }

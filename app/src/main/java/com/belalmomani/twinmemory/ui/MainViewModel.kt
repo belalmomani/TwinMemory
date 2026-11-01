@@ -17,7 +17,10 @@ import com.belalmomani.twinmemory.domain.Classify
 import com.belalmomani.twinmemory.domain.ItemKind
 import com.belalmomani.twinmemory.domain.SortBy
 import com.belalmomani.twinmemory.net.Discovery
+import com.belalmomani.twinmemory.BuildConfig
 import com.belalmomani.twinmemory.transfer.InboxSync
+import com.belalmomani.twinmemory.update.UpdateChecker
+import com.belalmomani.twinmemory.update.UpdateInfo
 import com.belalmomani.twinmemory.net.Pairing
 import com.belalmomani.twinmemory.net.PcClient
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +37,16 @@ fun sortItems(l: List<ItemEntity>, s: SortBy): List<ItemEntity> = when (s) {
 }
 
 enum class Conn { UNPAIRED, OFFLINE, ONLINE }
+
+sealed interface UpdateUi {
+    data object Idle : UpdateUi
+    data object Checking : UpdateUi
+    data object UpToDate : UpdateUi
+    data class Available(val info: UpdateInfo) : UpdateUi
+    data class Downloading(val pct: Int) : UpdateUi
+    data class Ready(val info: UpdateInfo, val file: java.io.File) : UpdateUi
+    data class Error(val msgRes: Int, val detail: String = "") : UpdateUi
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -78,6 +91,54 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearMirrorFolder() { tapp.mirrorPrefs.clear(); mirrorName.value = null }
+
+    // ---- in-app update ----
+    val update = MutableStateFlow<UpdateUi>(UpdateUi.Idle)
+    private val updPrefs = tapp.getSharedPreferences("update", android.content.Context.MODE_PRIVATE)
+
+    private fun errRes(code: String) = when (code) {
+        "signature" -> R.string.upd_bad_signature
+        "package", "bad_apk" -> R.string.upd_bad_package
+        "version" -> R.string.upd_bad_version
+        else -> R.string.upd_bad_hash
+    }
+
+    fun checkUpdates(manual: Boolean = true) = viewModelScope.launch(Dispatchers.IO) {
+        update.value = UpdateUi.Checking
+        updPrefs.edit().putLong("last", System.currentTimeMillis()).apply()
+        when (val r = UpdateChecker.check(BuildConfig.VERSION_CODE)) {
+            UpdateChecker.CheckResult.UpToDate -> update.value = if (manual) UpdateUi.UpToDate else UpdateUi.Idle
+            is UpdateChecker.CheckResult.Available -> {
+                update.value = UpdateUi.Available(r.info)
+                if (updPrefs.getString("notified", "") != r.info.version) { updPrefs.edit().putString("notified", r.info.version).apply(); msgs.tryEmit(R.string.msg_update_available) }
+            }
+            is UpdateChecker.CheckResult.Failed -> update.value = if (manual) UpdateUi.Error(R.string.upd_check_failed, r.reason) else UpdateUi.Idle
+        }
+    }
+
+    fun downloadUpdate() {
+        val a = update.value as? UpdateUi.Available ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val dest = java.io.File(tapp.cacheDir, "updates/TwinMemory-" + a.info.version + ".apk")
+            try {
+                update.value = UpdateUi.Downloading(0)
+                UpdateChecker.download(a.info, dest) { update.value = UpdateUi.Downloading(it) }
+                val err = UpdateChecker.verify(tapp, dest, a.info)
+                if (err != null) { dest.delete(); update.value = UpdateUi.Error(errRes(err), err) }
+                else update.value = UpdateUi.Ready(a.info, dest)
+            } catch (e: Exception) {
+                dest.delete(); update.value = UpdateUi.Error(R.string.upd_download_failed, e.message ?: "")
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val s = update.value as? UpdateUi.Ready ?: return
+        if (!UpdateChecker.canInstall(tapp)) { UpdateChecker.openInstallSettings(tapp); msgs.tryEmit(R.string.upd_allow_install); return }
+        UpdateChecker.install(tapp, s.file)
+    }
+
+    init { if (System.currentTimeMillis() - updPrefs.getLong("last", 0L) > 24L * 3600 * 1000) checkUpdates(false) }
 
     /** Accepts "192.168.1.5", "192.168.1.5:47821" or "https://192.168.1.5:47821/". */
     private fun parseHost(raw: String, defPort: Int): Pair<String, Int> {

@@ -51,6 +51,7 @@ public partial class App : Application
             Db = new Database(Path.Combine(DataDir, "twinmemory.db"));
             Store = new FileStore(Path.Combine(DataDir, "items"));
             Server = new TwinServer(Db, Store, DataDir);
+            Update.UpdateService.Cleanup(); // leftovers of a finished update (runs after the previous process exited)
             Mirror = new SyncEngine(Db, Store, DataDir);
             Mirror.AfterPass = AutoQueue;
             Server.DataChanged += () => Mirror.Trigger();
