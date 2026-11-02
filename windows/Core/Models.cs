@@ -28,7 +28,7 @@ public class Item
     public string Star => Favorite ? "★" : "";
 }
 
-public record Folder(string Id, string Name);
+public record Folder(string Id, string Name, string? ParentId = null);
 public record Choice(string? Id, string Name);
 
 public enum SortBy { Date, Name, Size, Type }
@@ -63,6 +63,7 @@ public class Transfer
     public string? Error { get; set; }
     public long Started { get; set; }
     public long Finished { get; set; }
+    public string? FolderPath { get; set; }
 
     public string StateLabel => S.T(Direction == "out"
         ? State switch { "done" => "تم — تحقّق الهاتف من سلامة الملف", "failed" => "فشل", _ => "بانتظار الهاتف" }

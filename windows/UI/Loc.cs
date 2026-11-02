@@ -98,6 +98,8 @@ public static class S
         ["تم التحقق من الملف. جارٍ التحديث…"] = "File verified. Updating…",
         ["تعذّر استبدال البرنامج (قد يكون في مجلد محمي). الملف المُنزَّل في"] = "Could not replace the program (it may be in a protected folder). The downloaded file is in",
         ["بياناتك ومجلد TwinMemory لا تتأثر بالتحديث."] = "Your data and the TwinMemory folder are not affected by the update.",
+        ["استيراد مجلد…"] = "Import folder…",
+        ["جارٍ استيراد المجلد…"] = "Importing folder…",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

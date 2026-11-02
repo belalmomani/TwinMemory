@@ -79,7 +79,36 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
         return id
     }
 
-    suspend fun createFolder(name: String) { val n = name.trim(); if (n.isNotEmpty()) folderDao.insert(FolderEntity(newId(), n, null, now())) }
+    suspend fun createFolder(name: String, parentId: String? = null) {
+        val n = name.trim().replace('/', '_').replace('\\', '_')
+        if (n.isNotEmpty()) folderDao.insert(FolderEntity(newId(), n, parentId, now()))
+    }
+
+    /** "A/B/C" for a folder id (null for the root). */
+    suspend fun folderPath(id: String?): String? {
+        if (id == null) return null
+        val byId = folderDao.list().associateBy { it.id }
+        val parts = ArrayDeque<String>(); var cur = byId[id]; var g = 0
+        while (cur != null && g++ < 50) { parts.addFirst(cur.name); cur = cur.parentId?.let { byId[it] } }
+        return if (parts.isEmpty()) null else parts.joinToString("/")
+    }
+
+    /** Creates the chain "A/B/C" if missing (case-insensitive) and returns the last folder id. Ignores "." and "..". */
+    suspend fun ensureFolderPath(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        val segs = path.split('/', '\\').map { it.trim() }.filter { it.isNotEmpty() && it != "." && it != ".." }.take(20)
+        if (segs.isEmpty()) return null
+        val all = folderDao.list().toMutableList()
+        var parent: String? = null
+        for (raw in segs) {
+            val seg = raw.take(100)
+            val ex = all.firstOrNull { it.parentId == parent && it.name.equals(seg, true) }
+            if (ex != null) { parent = ex.id; continue }
+            val f = FolderEntity(newId(), seg, parent, now())
+            folderDao.insert(f); all += f; parent = f.id
+        }
+        return parent
+    }
     suspend fun renameFolder(id: String, name: String) { val n = name.trim(); if (n.isNotEmpty()) folderDao.rename(id, n) }
     suspend fun rename(id: String, title: String) { val t = title.trim(); if (t.isNotEmpty()) items.rename(id, t, now()) }
     suspend fun setFavorite(id: String, fav: Boolean) = items.setFavorite(id, fav, now())
@@ -97,23 +126,23 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
     suspend fun removeTag(id: String, tag: String) = items.removeTag(ItemTag(id, tag))
 
     // ---- items received from the computer (id = the computer's transfer id, so a repeated delivery never duplicates) ----
-    suspend fun receiveText(id: String, kind: String, title: String, text: String): Recv = withContext(Dispatchers.IO) {
+    suspend fun receiveText(id: String, kind: String, title: String, text: String, folderId: String? = null): Recv = withContext(Dispatchers.IO) {
         try {
             val ts = now()
             items.insert(ItemEntity(id, kind, title.ifBlank { Classify.titleFor(text) }, text, null, "text/plain",
-                text.toByteArray().size.toLong(), null, null, "pc", null, false, ts, ts, null))
+                text.toByteArray().size.toLong(), null, null, "pc", folderId, false, ts, ts, null))
             Recv.OK
         } catch (e: Exception) { Recv.ERROR }
     }
 
-    suspend fun receiveFile(id: String, kind: String, name: String, mime: String?, file: File, size: Long, sha: String): Recv = withContext(Dispatchers.IO) {
+    suspend fun receiveFile(id: String, kind: String, name: String, mime: String?, file: File, size: Long, sha: String, folderId: String? = null): Recv = withContext(Dispatchers.IO) {
         try {
             if (file.length() != size) return@withContext Recv.BAD
             val st = file.inputStream().use { store.store(id, name, it) }
             if (st.sha256 != sha.lowercase()) { store.delete(id); return@withContext Recv.BAD }
             try {
                 val ts = now()
-                items.insert(ItemEntity(id, kind, name, null, name, mime?.ifBlank { null }, st.size, st.sha256, st.relPath, "pc", null, false, ts, ts, null))
+                items.insert(ItemEntity(id, kind, name, null, name, mime?.ifBlank { null }, st.size, st.sha256, st.relPath, "pc", folderId, false, ts, ts, null))
             } catch (e: Exception) { store.delete(id); return@withContext Recv.ERROR }
             file.delete()
             Recv.OK

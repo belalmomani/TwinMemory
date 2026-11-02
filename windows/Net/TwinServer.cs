@@ -203,6 +203,7 @@ public class TwinServer
                 return Results.Json(new { state = "receiving", offset = File.Exists(pp) ? new FileInfo(pp).Length : 0L });
             }
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var folderPath = Str(r, "folderPath");
             if (kind is "TEXT" or "LINK")
             {
                 var text = Str(r, "text");
@@ -212,7 +213,7 @@ public class TwinServer
                 _db.Insert(new Item
                 {
                     Id = itemId, Kind = link ? "LINK" : "TEXT", Title = link ? Classify.HostOf(text) : Classify.TitleFor(text), Text = text.Trim(),
-                    Mime = "text/plain", Size = Encoding.UTF8.GetByteCount(text), Source = "phone", Created = now, Updated = now,
+                    Mime = "text/plain", Size = Encoding.UTF8.GetByteCount(text), Source = "phone", FolderId = _db.EnsureFolderPath(folderPath), Created = now, Updated = now,
                 });
                 _db.InsertTransfer(new Transfer { Id = id, DeviceId = dev.Id, Kind = kind, Title = Classify.TitleFor(text), Size = Encoding.UTF8.GetByteCount(text), State = "done", ItemId = itemId, Started = now, Finished = now });
                 Notify();
@@ -229,7 +230,7 @@ public class TwinServer
             catch { }
             _db.InsertTransfer(new Transfer
             {
-                Id = id, DeviceId = dev.Id, Kind = kind, Title = fileName, FileName = fileName, Mime = Str(r, "mime"), Size = size, Sha256 = sha, State = "receiving", Started = now,
+                Id = id, DeviceId = dev.Id, Kind = kind, Title = fileName, FileName = fileName, Mime = Str(r, "mime"), Size = size, Sha256 = sha, State = "receiving", Started = now, FolderPath = folderPath,
             });
             Notify();
             return Results.Json(new { state = "receiving", offset = 0 });
@@ -291,7 +292,7 @@ public class TwinServer
             _db.Insert(new Item
             {
                 Id = itemId, Kind = t.Kind, Title = t.FileName, FileName = t.FileName, Mime = t.Mime, Size = t.Size, Sha256 = actual, RelPath = st.RelPath,
-                Source = "phone", Created = now, Updated = now,
+                Source = "phone", FolderId = _db.EnsureFolderPath(t.FolderPath), Created = now, Updated = now,
             });
             _db.FinishTransfer(id, itemId);
             Notify();
@@ -307,6 +308,7 @@ public class TwinServer
             {
                 id = t.Id, kind = t.Kind, title = t.Title, fileName = t.FileName, mime = t.Mime, size = t.Size, sha256 = t.Sha256,
                 text = t.ItemId == null ? null : _db.GetItem(t.ItemId)?.Text,
+                folderPath = t.ItemId == null ? "" : (_db.FolderPath(_db.GetItem(t.ItemId)?.FolderId) ?? ""),
             }).ToList();
             return Results.Json(new { items = list });
         });

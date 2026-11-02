@@ -75,7 +75,7 @@ public partial class MainWindow : Window
             new() { Key = "zone:c", Title = "📱 " + S.T("هاتف C") },
             new() { Key = "zone:d", Title = "🖥️ " + S.T("كمبيوتر D") },
         };
-        foreach (var f in _folders) l.Add(new NavEntry { Key = "folder:" + f.Id, Title = "📁 " + f.Name });
+        AddFolders(l, null, 0);
         l.Add(new NavEntry { Key = "fav", Title = "⭐ " + S.T("المفضلة") });
         l.Add(new NavEntry { Key = "trash", Title = "🗑️ " + S.T("سلة المحذوفات") });
         _building = true;
@@ -84,6 +84,18 @@ public partial class MainWindow : Window
         _navKey = sel.Key;
         Nav.SelectedItem = sel;
         _building = false;
+    }
+
+    void AddFolders(List<NavEntry> l, string? parent, int level)
+    {
+        if (level > 20) return;
+        var kids = _folders.Where(x => x.ParentId == parent || (parent == null && x.ParentId != null && !_folders.Any(y => y.Id == x.ParentId)))
+                           .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        foreach (var f in kids)
+        {
+            l.Add(new NavEntry { Key = "folder:" + f.Id, Title = "📁 " + f.Name, Level = level });
+            AddFolders(l, f.Id, level + 1);
+        }
     }
 
     Filter MakeFilter()
@@ -176,13 +188,41 @@ public partial class MainWindow : Window
         return dup;
     }
 
+    /// <summary>Imports a whole directory tree: every sub-folder becomes a folder in the app, every file an item inside it.</summary>
+    (int Count, bool Dup, bool Fail) ImportTree(string dir, string? baseFolder)
+    {
+        int n = 0; bool dup = false, fail = false;
+        string Join(string a, string b) => string.IsNullOrEmpty(b) ? a : string.IsNullOrEmpty(a) ? b : a + "/" + b;
+        var start = Join(_db.FolderPath(baseFolder) ?? "", new DirectoryInfo(dir).Name);
+        _db.EnsureFolderPath(start);
+        var opt = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
+        foreach (var d in Directory.EnumerateDirectories(dir, "*", opt))
+            _db.EnsureFolderPath(Join(start, Path.GetRelativePath(dir, d).Replace('\\', '/')));
+        foreach (var f in Directory.EnumerateFiles(dir, "*", opt))
+        {
+            var name = Path.GetFileName(f);
+            if (name.StartsWith("~$") || name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || name.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase)) continue;
+            var rel = (Path.GetDirectoryName(Path.GetRelativePath(dir, f)) ?? "").Replace('\\', '/');
+            var folderId = _db.EnsureFolderPath(Join(start, rel));
+            try { dup |= ImportOne(f, folderId); n++; } catch { fail = true; }
+        }
+        return (n, dup, fail);
+    }
+
     async void ImportPaths(List<string> paths)
     {
         int ok = 0; bool dup = false, fail = false;
         var folder = CurrentFolder();
         foreach (var p in paths)
         {
-            if (Directory.Exists(p)) { Status(S.T("المجلدات غير مدعومة بعد؛ اسحب ملفات فقط.")); continue; }
+            if (Directory.Exists(p))
+            {
+                Status(S.T("جارٍ استيراد المجلد…"));
+                var r = await Task.Run(() => ImportTree(p, folder));
+                ok += r.Count; dup |= r.Dup; fail |= r.Fail;
+                BuildNav();
+                continue;
+            }
             if (!File.Exists(p)) continue;
             try { dup |= await Task.Run(() => ImportOne(p, folder)); ok++; }
             catch { fail = true; } // e.g. disk full: nothing existing is touched
@@ -259,7 +299,13 @@ public partial class MainWindow : Window
             case "newfolder":
             {
                 var n = Dlg.Input(this, S.T("اسم المجلد"));
-                if (n != null) { _db.CreateFolder(n.Trim()); BuildNav(); Refresh(); }
+                if (n != null) { _db.CreateFolder(n.Trim(), CurrentFolder()); BuildNav(); Refresh(); }
+                break;
+            }
+            case "importfolder":
+            {
+                var fd = new OpenFolderDialog();
+                if (fd.ShowDialog(this) == true) ImportPaths(new List<string> { fd.FolderName });
                 break;
             }
             case "selall": Active.SelectAll(); break;
@@ -276,7 +322,7 @@ public partial class MainWindow : Window
                 if (sel.Count > 0)
                 {
                     var opts = new List<Choice> { new(null, S.T("بدون مجلد")) };
-                    opts.AddRange(_folders.Select(f => new Choice(f.Id, f.Name)));
+                    opts.AddRange(_folders.Select(f => new Choice(f.Id, _db.FolderPath(f.Id) ?? f.Name)).OrderBy(c => c.Name));
                     var c = Dlg.Pick(this, S.T("نقل إلى"), opts);
                     if (c != null) { foreach (var i in sel) _db.Move(i.Id, c.Id); Refresh(); }
                 }

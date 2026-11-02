@@ -29,7 +29,7 @@ fun TextInputDialog(title: Int, label: Int, initial: String = "", multiline: Boo
 }
 
 @Composable
-fun SaveChoiceDialog(onText: () -> Unit, onFile: () -> Unit, onDismiss: () -> Unit) {
+fun SaveChoiceDialog(onText: () -> Unit, onFile: () -> Unit, onFolder: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.save_item)) },
@@ -37,6 +37,7 @@ fun SaveChoiceDialog(onText: () -> Unit, onFile: () -> Unit, onDismiss: () -> Un
             Column {
                 TextButton({ onDismiss(); onText() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.save_text_link)) }
                 TextButton({ onDismiss(); onFile() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_file)) }
+                TextButton({ onDismiss(); onFolder() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_folder)) }
             }
         },
         confirmButton = {}, dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
@@ -51,7 +52,7 @@ fun MoveDialog(folders: List<FolderEntity>, onPick: (String?) -> Unit, onDismiss
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 TextButton({ onPick(null); onDismiss() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.no_folder)) }
-                folders.forEach { f -> TextButton({ onPick(f.id); onDismiss() }, Modifier.fillMaxWidth()) { Text(f.name) } }
+                folders.sortedBy { pathLabel(it, folders) }.forEach { f -> TextButton({ onPick(f.id); onDismiss() }, Modifier.fillMaxWidth()) { Text(pathLabel(f, folders)) } }
             }
         },
         confirmButton = {}, dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
@@ -98,4 +99,11 @@ fun PropertiesDialog(item: ItemEntity, tags: List<String>, onOpen: () -> Unit, o
         },
         dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.close)) } },
     )
+}
+
+fun pathLabel(f: FolderEntity, all: List<FolderEntity>): String {
+    val byId = all.associateBy { it.id }
+    val parts = ArrayDeque<String>(); var cur: FolderEntity? = f; var g = 0
+    while (cur != null && g++ < 50) { parts.addFirst(cur.name); cur = cur.parentId?.let { byId[it] } }
+    return parts.joinToString(" / ")
 }

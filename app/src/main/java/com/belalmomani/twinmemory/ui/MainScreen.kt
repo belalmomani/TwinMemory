@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -68,6 +69,7 @@ fun MainScreen(vm: MainViewModel) {
     val openFolder by vm.openFolder.collectAsStateWithLifecycle()
     val conn by vm.conn.collectAsStateWithLifecycle()
     val mirror by vm.mirrorName.collectAsStateWithLifecycle()
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u -> if (u != null) vm.importTree(u) }
     val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u -> if (u != null) vm.setMirrorFolder(u) }
     val queue by vm.transfersList.collectAsStateWithLifecycle()
 
@@ -103,7 +105,7 @@ fun MainScreen(vm: MainViewModel) {
         if (n == 0) ctx.getString(R.string.count_none) else ctx.getString(R.string.count_items, n)
     }
     BackHandler(enabled = route != null || showTrash || openFolder != null) {
-        when { showTrash -> showTrash = false; route != null -> route = null; else -> vm.openFolder.value = null }
+        when { showTrash -> showTrash = false; route != null -> route = null; else -> vm.openFolder.value = folders.firstOrNull { it.id == openFolder }?.parentId }
     }
     val canSave = !showTrash && route != "queue" && route != "favs" && route != "pair" && ((tab == 0) || (tab == 1 && openFolder != null))
 
@@ -155,12 +157,17 @@ fun MainScreen(vm: MainViewModel) {
                     if (query.isBlank()) Dashboard(countOf, { route = it }, { showTrash = true }, { tab = 2 }, { help = true })
                     else ItemList(home, R.string.no_results, acts, Modifier.weight(1f))
                 }
-                tab == 1 && openFolder == null -> FoldersScreen(folders, { vm.openFolder.value = it }, { dlg = Dlg.NewFolder }, { id, n -> dlg = Dlg.RenameFolder(id, n) })
+                tab == 1 && openFolder == null -> FoldersScreen(folders.filter { f -> f.parentId == null || folders.none { p -> p.id == f.parentId } }, { vm.openFolder.value = it }, { dlg = Dlg.NewFolder }, { id, n -> dlg = Dlg.RenameFolder(id, n) })
                 tab == 1 -> {
                     val name = folders.firstOrNull { it.id == openFolder }?.name ?: ""
                     Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton({ vm.openFolder.value = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
-                        Text(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        IconButton({ vm.openFolder.value = folders.firstOrNull { it.id == openFolder }?.parentId }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                        Text(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        TextButton({ dlg = Dlg.NewFolder }) { Text(stringResource(R.string.subfolder_new)) }
+                    }
+                    val subs = folders.filter { it.parentId == openFolder }
+                    if (subs.isNotEmpty()) LazyRow(contentPadding = PaddingValues(16.dp, 0.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(subs, key = { it.id }) { sf -> AssistChip({ vm.openFolder.value = sf.id }, { Text("📁 " + sf.name) }) }
                     }
                     ItemList(inFolder, R.string.folder_items_empty, acts, Modifier.weight(1f))
                 }
@@ -174,7 +181,7 @@ fun MainScreen(vm: MainViewModel) {
 
     when (val d = dlg) {
         null -> {}
-        Dlg.Choice -> SaveChoiceDialog({ dlg = Dlg.SaveText }, { picker.launch(arrayOf("*/*")) }, { if (dlg == Dlg.Choice) dlg = null })
+        Dlg.Choice -> SaveChoiceDialog({ dlg = Dlg.SaveText }, { picker.launch(arrayOf("*/*")) }, { folderPicker.launch(null) }, { if (dlg == Dlg.Choice) dlg = null })
         Dlg.SaveText -> TextInputDialog(R.string.save_text_link, R.string.text_hint, multiline = true, onDismiss = { dlg = null }, onOk = { vm.saveText(it) })
         Dlg.NewFolder -> TextInputDialog(R.string.new_folder, R.string.folder_name, confirm = R.string.create, onDismiss = { dlg = null }, onOk = { vm.createFolder(it) })
         is Dlg.RenameFolder -> TextInputDialog(R.string.rename, R.string.folder_name, d.name, onDismiss = { dlg = null }, onOk = { vm.renameFolder(d.id, it) })

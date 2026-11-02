@@ -28,14 +28,15 @@ class InboxSync(private val app: TwinMemoryApp) {
             if (!idRegex.matches(id) || kind !in allowed) continue
             if (app.db.items().get(id) != null) { client.ack(id); continue }
             try {
+                val fid = app.repo.ensureFolderPath(o.optString("folderPath"))
                 val result = if (kind == "TEXT" || kind == "LINK") {
-                    app.repo.receiveText(id, kind, o.optString("title"), o.optString("text"))
+                    app.repo.receiveText(id, kind, o.optString("title"), o.optString("text"), fid)
                 } else {
                     val part = File(dir, "$id.part")
                     val size = o.optLong("size")
                     if (part.exists() && part.length() > size) part.delete()
                     client.download(id, part)
-                    val r = app.repo.receiveFile(id, kind, o.optString("fileName").ifBlank { o.optString("title") }, o.optString("mime"), part, size, o.optString("sha256"))
+                    val r = app.repo.receiveFile(id, kind, o.optString("fileName").ifBlank { o.optString("title") }, o.optString("mime"), part, size, o.optString("sha256"), fid)
                     if (r == Recv.BAD) part.delete()
                     r
                 }

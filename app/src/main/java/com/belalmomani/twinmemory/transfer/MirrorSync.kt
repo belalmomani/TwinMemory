@@ -11,50 +11,84 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Two-way mirror between the app and a folder the user chose on the phone (visible in any file manager).
- * App items are written there as files; new files the user puts there are imported (and then auto-sent to the computer).
- * Safety: nothing is ever overwritten (names get " (2)") and nothing is deleted. Edits/renames/deletions are not propagated yet.
+ * Two-way mirror between the app and a folder the user chose on the phone (visible in any file manager), including nested folders.
+ * App items are written there as files inside matching directories; new files/directories the user puts there are imported
+ * (and then auto-sent to the computer). Nothing is ever overwritten (names get " (2)") or deleted. Edits/renames/deletions are not propagated.
  */
 class MirrorSync(private val app: TwinMemoryApp) {
     private val ctx = app.applicationContext
+
+    private fun dirName(n: String) = Classify.sanitizeFileName(n).trimEnd('.', ' ').ifEmpty { "folder" }
 
     suspend fun run(): Int = withContext(Dispatchers.IO) {
         val uriStr = app.mirrorPrefs.treeUri ?: return@withContext 0
         val cats = app.mirrorPrefs.cats() ?: return@withContext 0
         val root = DocumentFile.fromTreeUri(ctx, Uri.parse(uriStr))
         if (root == null || !root.exists() || !root.canWrite()) return@withContext 0
+        val repo = app.repo
         val dao = app.db.mirror()
         val mapped = dao.all().map { it.path }.toHashSet()
-        val folders = app.db.folders().list().toMutableList()
         var changed = 0
         val now = System.currentTimeMillis()
 
-        // 1) new files put into the folder -> items
+        // 1) walk the folder (any depth)
         val found = mutableListOf<Pair<String, DocumentFile>>()
-        for (f in root.listFiles()) {
-            val n = f.name ?: continue
-            if (f.isDirectory) { for (g in f.listFiles()) if (g.isFile) found += "$n/${g.name}" to g }
-            else if (f.isFile) found += n to f
+        val dirs = mutableListOf<String>()
+        fun walk(dir: DocumentFile, prefix: String, depth: Int) {
+            if (depth > 20) return
+            for (f in dir.listFiles()) {
+                val n = f.name ?: continue
+                if (n.startsWith(".")) continue
+                if (f.isDirectory) { dirs += prefix + n; walk(f, "$prefix$n/", depth + 1) }
+                else if (f.isFile) found += (prefix + n) to f
+            }
         }
+        walk(root, "", 0)
+
+        // "A/B/file" -> folder path "A/B"; files directly under a category directory (Texts, Files...) belong to no folder
+        fun folderPathOf(rel: String): String? {
+            val d = rel.split('/').dropLast(1)
+            if (d.isEmpty()) return null
+            val fp = if (cats.any { it.equals(d[0], true) }) d.drop(1) else d
+            return fp.takeIf { it.isNotEmpty() }?.joinToString("/")
+        }
+
+        // directories (also empty ones) -> folders
+        for (d in dirs) folderPathOf("$d/x")?.let { repo.ensureFolderPath(it) }
+
+        // new files -> items
         for ((rel, f) in found) {
             val name = f.name ?: continue
-            if (rel in mapped || name.startsWith(".") || name.endsWith(".tmp") || name.endsWith(".part") || name.endsWith(".crdownload")) continue
+            if (rel in mapped || name.endsWith(".tmp") || name.endsWith(".part") || name.endsWith(".crdownload")) continue
             if (now - f.lastModified() < 3000) continue // still being written
-            val dirName = if (rel.contains('/')) rel.substringBefore('/') else null
-            val folderId = dirName?.takeIf { d -> cats.none { it.equals(d, true) } }?.let { d ->
-                folders.firstOrNull { it.name.equals(d, true) }?.id ?: app.repo.addFolder(d).also { id ->
-                    folders += com.belalmomani.twinmemory.data.db.FolderEntity(id, d, null, now)
-                }
-            }
-            val (_, id) = app.repo.importUriId(f.uri, folderId, "phone")
+            val fid = repo.ensureFolderPath(folderPathOf(rel))
+            val (_, id) = repo.importUriId(f.uri, fid, "phone")
             if (id != null) { dao.put(MirrorEntry(rel, id, f.length())); changed++ }
         }
 
-        // 2) items not yet in the folder -> files
+        // 2) app folders and items -> directories and files
+        fun dirFor(segs: List<String>): DocumentFile? {
+            var cur: DocumentFile = root
+            for (s in segs) cur = cur.findFile(s)?.takeIf { it.isDirectory } ?: cur.createDirectory(s) ?: return null
+            return cur
+        }
+        val folderRows = app.db.folders().list()
+        val byId = folderRows.associateBy { it.id }
+        fun pathOfFolder(id: String?): List<String>? {
+            if (id == null) return null
+            val parts = ArrayDeque<String>(); var cur = byId[id]; var g = 0
+            while (cur != null && g++ < 50) { parts.addFirst(dirName(cur.name)); cur = cur.parentId?.let { byId[it] } }
+            return if (parts.isEmpty()) null else parts.toList()
+        }
+        for (f in folderRows) {
+            val segs = pathOfFolder(f.id) ?: continue
+            val key = "dir:" + segs.joinToString("/")
+            if (key in mapped) continue
+            if (dirFor(segs) != null) dao.put(MirrorEntry(key, "folder:" + f.id, 0))
+        }
         for (it in app.db.items().unmirrored()) {
-            val dirName = it.folderId?.let { fid -> folders.firstOrNull { f -> f.id == fid }?.name }
-                ?: cats[when (it.kind) { "TEXT" -> 0; "LINK" -> 1; "IMAGE" -> 2; else -> 3 }]
-            val dir = root.findFile(dirName)?.takeIf { d -> d.isDirectory } ?: root.createDirectory(dirName) ?: continue
+            val segs = pathOfFolder(it.folderId) ?: listOf(cats[when (it.kind) { "TEXT" -> 0; "LINK" -> 1; "IMAGE" -> 2; else -> 3 }])
+            val dir = dirFor(segs) ?: continue
             val doc = dir.createFile(mimeFor(it), uniqueName(dir, exportName(it))) ?: continue
             try {
                 val out = ctx.contentResolver.openOutputStream(doc.uri)
@@ -70,7 +104,7 @@ class MirrorSync(private val app: TwinMemoryApp) {
                     }
                 }
             } catch (e: IOException) { doc.delete(); break } // storage full etc.: nothing is lost, retried next cycle
-            dao.put(MirrorEntry("${dir.name}/${doc.name}", it.id, doc.length()))
+            dao.put(MirrorEntry(segs.joinToString("/") + "/" + doc.name, it.id, doc.length()))
             changed++
         }
         changed

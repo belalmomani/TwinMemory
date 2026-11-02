@@ -151,4 +151,8 @@
     <string name="upd_bad_version">The file version number is wrong; refused</string>
     <string name="upd_allow_install">Allow TwinMemory to install apps in the settings that opened, then come back and tap Install</string>
     <string name="msg_update_available">A new update is available (More → Updates)</string>
+    <string name="import_folder">Import a whole folder</string>
+    <string name="msg_importing">Importing folder…</string>
+    <string name="msg_folder_imported">Folder imported</string>
+    <string name="subfolder_new">+ Subfolder</string>
 </resources>

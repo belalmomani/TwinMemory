@@ -52,6 +52,11 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
  mtime INTEGER NOT NULL, sha256 TEXT NOT NULL, title TEXT NOT NULL, folder_id TEXT);");
             Exec(c, "PRAGMA user_version = 3");
         }
+        if (v < 4)
+        {
+            Exec(c, "ALTER TABLE transfers ADD COLUMN folder_path TEXT");
+            Exec(c, "PRAGMA user_version = 4");
+        }
     }
 
     const string Cols = "id,kind,title,text,file_name,mime,size,sha256,rel_path,source,folder_id,favorite,created,updated,trashed";
@@ -130,13 +135,42 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
     public List<Folder> Folders()
     {
         using var c = Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,name FROM folders ORDER BY name COLLATE NOCASE";
+        cmd.CommandText = "SELECT id,name,parent_id FROM folders ORDER BY name COLLATE NOCASE";
         var l = new List<Folder>(); using var r = cmd.ExecuteReader();
-        while (r.Read()) l.Add(new Folder(r.GetString(0), r.GetString(1)));
+        while (r.Read()) l.Add(new Folder(r.GetString(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2)));
         return l;
     }
 
-    public void CreateFolder(string name) { using var c = Open(); Exec(c, "INSERT INTO folders(id,name,created) VALUES($id,$n,$c)", ("$id", Guid.NewGuid().ToString()), ("$n", name), ("$c", Now())); }
+    public void CreateFolder(string name, string? parentId = null) => CreateFolderId(name, parentId);
+
+    /// <summary>"A/B/C" for a folder id (null for the root).</summary>
+    public string? FolderPath(string? id)
+    {
+        if (id == null) return null;
+        var all = Folders().ToDictionary(f => f.Id);
+        var parts = new List<string>(); var cur = all.GetValueOrDefault(id); int g = 0;
+        while (cur != null && g++ < 50) { parts.Insert(0, cur.Name); cur = cur.ParentId != null ? all.GetValueOrDefault(cur.ParentId) : null; }
+        return parts.Count == 0 ? null : string.Join("/", parts);
+    }
+
+    /// <summary>Creates the folder chain for "A/B/C" if missing (case-insensitive match) and returns the last folder's id. Ignores "." and "..".</summary>
+    public string? EnsureFolderPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var segs = path.Split('/', '\\').Select(x => x.Trim()).Where(x => x.Length > 0 && x != "." && x != "..").Take(20).ToList();
+        if (segs.Count == 0) return null;
+        var all = Folders(); string? parent = null;
+        foreach (var raw in segs)
+        {
+            var seg = raw.Length > 100 ? raw[..100] : raw;
+            var ex = all.FirstOrDefault(f => f.ParentId == parent && f.Name.Equals(seg, StringComparison.OrdinalIgnoreCase));
+            if (ex != null) { parent = ex.Id; continue; }
+            var id = CreateFolderId(seg, parent);
+            all.Add(new Folder(id, seg, parent));
+            parent = id;
+        }
+        return parent;
+    }
     public void RenameFolder(string id, string name) { using var c = Open(); Exec(c, "UPDATE folders SET name=$n WHERE id=$id", ("$n", name), ("$id", id)); }
 
     // ---- paired devices ----
@@ -170,12 +204,12 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
     public void InsertTransfer(Transfer t)
     {
         using var c = Open();
-        Exec(c, "INSERT INTO transfers(id,device_id,direction,kind,title,file_name,mime,size,sha256,state,item_id,error,started,finished) VALUES($id,$d,$dir,$k,$t,$fn,$m,$s,$sha,$st,$it,$e,$sa,$fi)",
+        Exec(c, "INSERT INTO transfers(id,device_id,direction,kind,title,file_name,mime,size,sha256,state,item_id,error,started,finished,folder_path) VALUES($id,$d,$dir,$k,$t,$fn,$m,$s,$sha,$st,$it,$e,$sa,$fi,$fp)",
             ("$id", t.Id), ("$d", t.DeviceId), ("$dir", t.Direction), ("$k", t.Kind), ("$t", t.Title), ("$fn", t.FileName), ("$m", t.Mime), ("$s", t.Size),
-            ("$sha", t.Sha256), ("$st", t.State), ("$it", t.ItemId), ("$e", t.Error), ("$sa", t.Started), ("$fi", t.Finished));
+            ("$sha", t.Sha256), ("$st", t.State), ("$it", t.ItemId), ("$e", t.Error), ("$sa", t.Started), ("$fi", t.Finished), ("$fp", t.FolderPath));
     }
 
-    const string TCols = "t.id,t.device_id,t.direction,t.kind,t.title,t.file_name,t.mime,t.size,t.sha256,t.state,t.item_id,t.error,t.started,t.finished,COALESCE(d.name,'')";
+    const string TCols = "t.id,t.device_id,t.direction,t.kind,t.title,t.file_name,t.mime,t.size,t.sha256,t.state,t.item_id,t.error,t.started,t.finished,COALESCE(d.name,''),t.folder_path";
     static Transfer ReadTransfer(SqliteDataReader r)
     {
         string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
@@ -183,7 +217,7 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
         {
             Id = r.GetString(0), DeviceId = r.GetString(1), Direction = r.GetString(2), Kind = r.GetString(3), Title = r.GetString(4),
             FileName = S(5) ?? "", Mime = S(6) ?? "", Size = r.GetInt64(7), Sha256 = S(8) ?? "", State = r.GetString(9), ItemId = S(10), Error = S(11),
-            Started = r.GetInt64(12), Finished = r.IsDBNull(13) ? 0 : r.GetInt64(13), DeviceName = r.GetString(14),
+            Started = r.GetInt64(12), Finished = r.IsDBNull(13) ? 0 : r.GetInt64(13), DeviceName = r.GetString(14), FolderPath = S(15),
         };
     }
 
@@ -278,11 +312,11 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
     public void UpdateText(string id, string text, long size) { using var c = Open(); Exec(c, "UPDATE items SET text=$t, size=$s, updated=$n WHERE id=$id", ("$t", text), ("$s", size), ("$n", Now()), ("$id", id)); }
     public void UpdateFile(string id, long size, string sha) { using var c = Open(); Exec(c, "UPDATE items SET size=$s, sha256=$h, updated=$n WHERE id=$id", ("$s", size), ("$h", sha), ("$n", Now()), ("$id", id)); }
 
-    public string CreateFolderId(string name)
+    public string CreateFolderId(string name, string? parentId = null)
     {
         var id = Guid.NewGuid().ToString();
         using var c = Open();
-        Exec(c, "INSERT INTO folders(id,name,created) VALUES($id,$n,$c)", ("$id", id), ("$n", name), ("$c", Now()));
+        Exec(c, "INSERT INTO folders(id,name,parent_id,created) VALUES($id,$n,$p,$c)", ("$id", id), ("$n", name), ("$p", parentId), ("$c", Now()));
         return id;
     }
 }

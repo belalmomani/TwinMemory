@@ -151,4 +151,8 @@
     <string name="upd_bad_version">رقم إصدار الملف غير صحيح؛ رُفض</string>
     <string name="upd_allow_install">اسمح لـ TwinMemory بتثبيت التطبيقات في الإعدادات التي فُتحت، ثم ارجع واضغط «تثبيت»</string>
     <string name="msg_update_available">يتوفر تحديث جديد (المزيد ← التحديثات)</string>
+    <string name="import_folder">استيراد مجلد كامل</string>
+    <string name="msg_importing">جارٍ استيراد المجلد…</string>
+    <string name="msg_folder_imported">تم استيراد المجلد</string>
+    <string name="subfolder_new">+ مجلد فرعي</string>
 </resources>

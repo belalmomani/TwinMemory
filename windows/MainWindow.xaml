@@ -9,6 +9,7 @@
     <ContextMenu x:Key="NewMenu">
       <MenuItem Header="{l:T 'حفظ نص أو رابط'}" Tag="newtext" Click="Cmd"/>
       <MenuItem Header="{l:T 'استيراد ملف…'}" Tag="import" Click="Cmd"/>
+      <MenuItem Header="{l:T 'استيراد مجلد…'}" Tag="importfolder" Click="Cmd"/>
       <MenuItem Header="{l:T 'مجلد جديد'}" Tag="newfolder" Click="Cmd"/>
     </ContextMenu>
     <ContextMenu x:Key="ViewMenu">
@@ -56,6 +57,7 @@
         <MenuItem Header="{l:T 'مجلد جديد'}" InputGestureText="Ctrl+Shift+N" Tag="newfolder" Click="Cmd"/>
         <MenuItem Header="{l:T 'حفظ نص أو رابط'}" Tag="newtext" Click="Cmd"/>
         <MenuItem Header="{l:T 'استيراد ملف…'}" Tag="import" Click="Cmd"/>
+        <MenuItem Header="{l:T 'استيراد مجلد…'}" Tag="importfolder" Click="Cmd"/>
         <Separator/>
         <MenuItem Header="{l:T 'إغلاق'}" Tag="close" Click="Cmd"/>
       </MenuItem>

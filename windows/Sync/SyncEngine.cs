@@ -179,26 +179,55 @@ public class SyncEngine : IDisposable
         foreach (var c in _cats) Directory.CreateDirectory(Path.Combine(Root, c));
 
         var items = _db.Query(new Filter()).ToDictionary(i => i.Id); // active (non-trashed) items
-        var folderByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var nameByFolder = new Dictionary<string, string>();
-        foreach (var f in _db.Folders()) { var sn = Safe(f.Name); if (folderByName.TryAdd(sn, f.Id)) nameByFolder[f.Id] = sn; }
-
-        // sub-folders created in Explorer become folders in the app
-        foreach (var d in Directory.EnumerateDirectories(Root))
+        // folder id <-> sanitized path ("A/B/C") so nested folders map to nested directories
+        var folderRows = _db.Folders();
+        var rowById = folderRows.ToDictionary(f => f.Id);
+        var folderByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // sanitized path -> id
+        var nameByFolder = new Dictionary<string, string>();                                  // id -> sanitized path
+        foreach (var f in folderRows)
         {
-            var name = Path.GetFileName(d);
-            if (name.StartsWith(".") || _cats.Contains(name, StringComparer.OrdinalIgnoreCase) || folderByName.ContainsKey(name)) continue;
-            var id = _db.CreateFolderId(name);
-            folderByName[name] = id; nameByFolder[id] = name; changed = true;
+            var parts = new List<string>(); var cur = f; int guard = 0;
+            while (cur != null && guard++ < 50) { parts.Insert(0, Safe(cur.Name)); cur = cur.ParentId != null && rowById.TryGetValue(cur.ParentId, out var up) ? up : null; }
+            var pth = string.Join("/", parts);
+            if (folderByName.TryAdd(pth, f.Id)) nameByFolder[f.Id] = pth;
         }
+
+        string? EnsureChain(string path)
+        {
+            string? parent = null; var acc = "";
+            foreach (var seg in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+            {
+                acc = acc.Length == 0 ? seg : acc + "/" + seg;
+                if (!folderByName.TryGetValue(acc, out var fid))
+                {
+                    fid = _db.CreateFolderId(seg, parent);
+                    folderByName[acc] = fid; nameByFolder[fid] = acc; changed = true;
+                }
+                parent = fid;
+            }
+            return parent;
+        }
+
+        // directories (any depth, also empty ones) created in Explorer become folders in the app
+        try
+        {
+            foreach (var d in Directory.EnumerateDirectories(Root, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+            {
+                var segs = Rel(d).Split('/');
+                if (segs.Any(x => x.StartsWith("."))) continue;
+                var fp = _cats.Contains(segs[0], StringComparer.OrdinalIgnoreCase) ? string.Join("/", segs.Skip(1)) : string.Join("/", segs);
+                if (fp.Length > 0) EnsureChain(fp);
+            }
+        }
+        catch (Exception ex) { Say(S.T("تعذّرت مزامنة المجلد") + ": " + ex.Message); return new Result(changed, false); }
 
         string? FolderOf(string rel)
         {
-            var i = rel.IndexOf('/');
+            var i = rel.LastIndexOf('/');
             if (i < 0) return null;
-            var top = rel[..i];
-            if (_cats.Contains(top, StringComparer.OrdinalIgnoreCase)) return null;
-            return folderByName.TryGetValue(top, out var fid) ? fid : null;
+            var segs = rel[..i].Split('/');
+            var fp = _cats.Contains(segs[0], StringComparer.OrdinalIgnoreCase) ? string.Join("/", segs.Skip(1)) : string.Join("/", segs);
+            return fp.Length == 0 ? null : EnsureChain(fp);
         }
 
         var disk = new Dictionary<string, FileInfo>(StringComparer.OrdinalIgnoreCase);
