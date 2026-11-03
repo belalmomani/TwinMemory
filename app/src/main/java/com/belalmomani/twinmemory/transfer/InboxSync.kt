@@ -26,17 +26,18 @@ class InboxSync(private val app: TwinMemoryApp) {
             val id = o.optString("id")
             val kind = o.optString("kind")
             if (!idRegex.matches(id) || kind !in allowed) continue
-            if (app.db.items().get(id) != null) { client.ack(id); continue }
+            val sync = o.optString("syncId")
+            if (app.db.items().get(id) != null || (sync.isNotEmpty() && app.db.items().bySync(sync) != null)) { client.ack(id); continue }
             try {
                 val fid = app.repo.ensureFolderPath(o.optString("folderPath"))
                 val result = if (kind == "TEXT" || kind == "LINK") {
-                    app.repo.receiveText(id, kind, o.optString("title"), o.optString("text"), fid)
+                    app.repo.receiveText(id, kind, o.optString("title"), o.optString("text"), fid, sync)
                 } else {
                     val part = File(dir, "$id.part")
                     val size = o.optLong("size")
                     if (part.exists() && part.length() > size) part.delete()
                     client.download(id, part)
-                    val r = app.repo.receiveFile(id, kind, o.optString("fileName").ifBlank { o.optString("title") }, o.optString("mime"), part, size, o.optString("sha256"), fid)
+                    val r = app.repo.receiveFile(id, kind, o.optString("fileName").ifBlank { o.optString("title") }, o.optString("mime"), part, size, o.optString("sha256"), fid, sync)
                     if (r == Recv.BAD) part.delete()
                     r
                 }

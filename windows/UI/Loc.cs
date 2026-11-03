@@ -100,6 +100,7 @@ public static class S
         ["بياناتك ومجلد TwinMemory لا تتأثر بالتحديث."] = "Your data and the TwinMemory folder are not affected by the update.",
         ["استيراد مجلد…"] = "Import folder…",
         ["جارٍ استيراد المجلد…"] = "Importing folder…",
+        ["نسخة متعارضة"] = "conflict copy",
         ["الإصدار"] = "Version", ["مجلد البيانات"] = "Data folder",
     };
 

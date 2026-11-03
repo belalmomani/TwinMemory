@@ -19,6 +19,7 @@ public class Item
     public long Created { get; set; }
     public long Updated { get; set; }
     public long? Trashed { get; set; }
+    public string? SyncId { get; set; }
 
     public string Glyph => Kind switch { "TEXT" => "📝", "LINK" => "🔗", "IMAGE" => "🖼️", "VIDEO" => "🎞️", "DOCUMENT" => "📄", _ => "📎" };
     public string KindLabel => S.T(Kind switch { "TEXT" => "نص", "LINK" => "رابط", "IMAGE" => "صورة", "VIDEO" => "فيديو", "DOCUMENT" => "مستند", _ => "ملف" });
@@ -64,6 +65,7 @@ public class Transfer
     public long Started { get; set; }
     public long Finished { get; set; }
     public string? FolderPath { get; set; }
+    public string? SyncId { get; set; }
 
     public string StateLabel => S.T(Direction == "out"
         ? State switch { "done" => "تم — تحقّق الهاتف من سلامة الملف", "failed" => "فشل", _ => "بانتظار الهاتف" }

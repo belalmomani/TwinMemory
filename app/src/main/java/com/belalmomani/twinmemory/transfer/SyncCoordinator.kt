@@ -14,6 +14,7 @@ class SyncCoordinator(private val app: TwinMemoryApp) {
         if (paired) app.transfers.enqueueNewPhoneItems()
         if (client != null) {
             try { received += InboxSync(app).run(client) } catch (e: Exception) { /* computer unreachable: retried later */ }
+            try { StateSync(app).run(client) } catch (e: Exception) { /* retried later */ }
             app.transfers.kickIfIdleWithWork()
         }
         try { MirrorSync(app).run() } catch (e: Exception) { /* folder unavailable: retried later */ }

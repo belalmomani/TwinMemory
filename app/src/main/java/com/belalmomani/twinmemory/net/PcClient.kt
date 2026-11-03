@@ -83,6 +83,8 @@ class PcClient(private val host: String, private val port: Int, private val pin:
 
     fun unpair() { finish(open("/pair", "DELETE")) }
 
+    fun sync(body: JSONObject): JSONObject = postJson("/sync", body, 60000)
+
     fun startTransfer(meta: JSONObject): JSONObject = postJson("/transfers", meta)
 
     fun putChunk(id: String, offset: Long, buf: ByteArray, len: Int): JSONObject {

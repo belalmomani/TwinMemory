@@ -1,5 +1,6 @@
 package com.belalmomani.twinmemory.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -26,6 +27,7 @@ data class ItemEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val trashedAt: Long?,
+    @ColumnInfo(defaultValue = "''") val syncId: String = "",
 )
 
 @Entity(

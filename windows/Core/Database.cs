@@ -57,9 +57,18 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
             Exec(c, "ALTER TABLE transfers ADD COLUMN folder_path TEXT");
             Exec(c, "PRAGMA user_version = 4");
         }
+        if (v < 5)
+        {
+            // sync_id = the same id on both devices (for items already transferred: the transfer id both sides know)
+            Exec(c, @"ALTER TABLE items ADD COLUMN sync_id TEXT;
+ALTER TABLE transfers ADD COLUMN sync_id TEXT;
+UPDATE items SET sync_id = COALESCE((SELECT t.id FROM transfers t WHERE t.item_id = items.id AND t.state = 'done' LIMIT 1), id);
+CREATE INDEX IF NOT EXISTS ix_items_sync ON items(sync_id);");
+            Exec(c, "PRAGMA user_version = 5");
+        }
     }
 
-    const string Cols = "id,kind,title,text,file_name,mime,size,sha256,rel_path,source,folder_id,favorite,created,updated,trashed";
+    const string Cols = "id,kind,title,text,file_name,mime,size,sha256,rel_path,source,folder_id,favorite,created,updated,trashed,sync_id";
 
     public List<Item> Query(Filter f)
     {
@@ -96,7 +105,7 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
             {
                 Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
                 Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
-                Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14),
+                Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14), SyncId = S(15),
             });
         }
         return list;
@@ -105,15 +114,15 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
     public void Insert(Item i)
     {
         using var c = Open();
-        Exec(c, $"INSERT INTO items({Cols}) VALUES($id,$kind,$title,$text,$fn,$mime,$size,$sha,$rel,$src,$fid,$fav,$cr,$up,$tr)",
+        Exec(c, $"INSERT INTO items({Cols}) VALUES($id,$kind,$title,$text,$fn,$mime,$size,$sha,$rel,$src,$fid,$fav,$cr,$up,$tr,$sy)",
             ("$id", i.Id), ("$kind", i.Kind), ("$title", i.Title), ("$text", i.Text), ("$fn", i.FileName), ("$mime", i.Mime), ("$size", i.Size),
             ("$sha", i.Sha256), ("$rel", i.RelPath), ("$src", i.Source), ("$fid", i.FolderId), ("$fav", i.Favorite ? 1 : 0),
-            ("$cr", i.Created), ("$up", i.Updated), ("$tr", i.Trashed));
+            ("$cr", i.Created), ("$up", i.Updated), ("$tr", i.Trashed), ("$sy", string.IsNullOrEmpty(i.SyncId) ? i.Id : i.SyncId));
     }
 
     static long Now() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public void Rename(string id, string title) { using var c = Open(); Exec(c, "UPDATE items SET title=$t, updated=$n WHERE id=$id", ("$t", title), ("$n", Now()), ("$id", id)); }
-    public void SetFavorite(string id, bool fav) { using var c = Open(); Exec(c, "UPDATE items SET favorite=$f, updated=$n WHERE id=$id", ("$f", fav ? 1 : 0), ("$n", Now()), ("$id", id)); }
+    public void SetFavorite(string id, bool fav) { using var c = Open(); Exec(c, "UPDATE items SET favorite=$f WHERE id=$id", ("$f", fav ? 1 : 0), ("$id", id)); }
     public void Move(string id, string? folder) { using var c = Open(); Exec(c, "UPDATE items SET folder_id=$f, updated=$n WHERE id=$id", ("$f", folder), ("$n", Now()), ("$id", id)); }
     public void SetTrashed(string id, bool trashed) { using var c = Open(); Exec(c, "UPDATE items SET trashed=$t, updated=$n WHERE id=$id", ("$t", trashed ? (object)Now() : null), ("$n", Now()), ("$id", id)); }
     public void Delete(string id) { using var c = Open(); Exec(c, "DELETE FROM items WHERE id=$id", ("$id", id)); }
@@ -204,12 +213,12 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
     public void InsertTransfer(Transfer t)
     {
         using var c = Open();
-        Exec(c, "INSERT INTO transfers(id,device_id,direction,kind,title,file_name,mime,size,sha256,state,item_id,error,started,finished,folder_path) VALUES($id,$d,$dir,$k,$t,$fn,$m,$s,$sha,$st,$it,$e,$sa,$fi,$fp)",
+        Exec(c, "INSERT INTO transfers(id,device_id,direction,kind,title,file_name,mime,size,sha256,state,item_id,error,started,finished,folder_path,sync_id) VALUES($id,$d,$dir,$k,$t,$fn,$m,$s,$sha,$st,$it,$e,$sa,$fi,$fp,$sy)",
             ("$id", t.Id), ("$d", t.DeviceId), ("$dir", t.Direction), ("$k", t.Kind), ("$t", t.Title), ("$fn", t.FileName), ("$m", t.Mime), ("$s", t.Size),
-            ("$sha", t.Sha256), ("$st", t.State), ("$it", t.ItemId), ("$e", t.Error), ("$sa", t.Started), ("$fi", t.Finished), ("$fp", t.FolderPath));
+            ("$sha", t.Sha256), ("$st", t.State), ("$it", t.ItemId), ("$e", t.Error), ("$sa", t.Started), ("$fi", t.Finished), ("$fp", t.FolderPath), ("$sy", t.SyncId));
     }
 
-    const string TCols = "t.id,t.device_id,t.direction,t.kind,t.title,t.file_name,t.mime,t.size,t.sha256,t.state,t.item_id,t.error,t.started,t.finished,COALESCE(d.name,''),t.folder_path";
+    const string TCols = "t.id,t.device_id,t.direction,t.kind,t.title,t.file_name,t.mime,t.size,t.sha256,t.state,t.item_id,t.error,t.started,t.finished,COALESCE(d.name,''),t.folder_path,t.sync_id";
     static Transfer ReadTransfer(SqliteDataReader r)
     {
         string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
@@ -217,7 +226,7 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
         {
             Id = r.GetString(0), DeviceId = r.GetString(1), Direction = r.GetString(2), Kind = r.GetString(3), Title = r.GetString(4),
             FileName = S(5) ?? "", Mime = S(6) ?? "", Size = r.GetInt64(7), Sha256 = S(8) ?? "", State = r.GetString(9), ItemId = S(10), Error = S(11),
-            Started = r.GetInt64(12), Finished = r.IsDBNull(13) ? 0 : r.GetInt64(13), DeviceName = r.GetString(14), FolderPath = S(15),
+            Started = r.GetInt64(12), Finished = r.IsDBNull(13) ? 0 : r.GetInt64(13), DeviceName = r.GetString(14), FolderPath = S(15), SyncId = S(16),
         };
     }
 
@@ -263,7 +272,7 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
         {
             Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
             Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
-            Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14),
+            Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14), SyncId = S(15),
         };
     }
 
@@ -283,7 +292,7 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
             {
                 Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
                 Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
-                Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14),
+                Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14), SyncId = S(15),
             });
         }
         return list;
@@ -318,5 +327,54 @@ CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY, device_id TEXT NOT NUL
         using var c = Open();
         Exec(c, "INSERT INTO folders(id,name,parent_id,created) VALUES($id,$n,$p,$c)", ("$id", id), ("$n", name), ("$p", parentId), ("$c", Now()));
         return id;
+    }
+
+    // ---- state sync (rename / trash / move / text edit) ----
+    public Item? GetItemBySync(string syncId)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {Cols} FROM items WHERE sync_id=$s LIMIT 1"; cmd.Parameters.AddWithValue("$s", syncId);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        return new Item
+        {
+            Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
+            Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
+            Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14), SyncId = S(15),
+        };
+    }
+
+    /// <summary>All items (trashed included) changed after sinceMs.</summary>
+    public List<Item> ChangedItems(long sinceMs)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {Cols} FROM items WHERE sync_id IS NOT NULL AND updated > $s"; cmd.Parameters.AddWithValue("$s", sinceMs);
+        var list = new List<Item>(); using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+            list.Add(new Item
+            {
+                Id = r.GetString(0), Kind = r.GetString(1), Title = r.GetString(2), Text = S(3), FileName = S(4), Mime = S(5),
+                Size = r.GetInt64(6), Sha256 = S(7), RelPath = S(8), Source = r.GetString(9), FolderId = S(10),
+                Favorite = r.GetInt64(11) == 1, Created = r.GetInt64(12), Updated = r.GetInt64(13), Trashed = r.IsDBNull(14) ? null : r.GetInt64(14), SyncId = S(15),
+            });
+        }
+        return list;
+    }
+
+    /// <summary>folder id -> "A/B/C" for all folders (one query).</summary>
+    public Dictionary<string, string> FolderPaths()
+    {
+        var all = Folders().ToDictionary(f => f.Id);
+        var map = new Dictionary<string, string>();
+        foreach (var f in all.Values)
+        {
+            var parts = new List<string>(); var cur = f; int g = 0;
+            while (cur != null && g++ < 50) { parts.Insert(0, cur.Name); cur = cur.ParentId != null ? all.GetValueOrDefault(cur.ParentId) : null; }
+            map[f.Id] = string.Join("/", parts);
+        }
+        return map;
     }
 }

@@ -155,4 +155,5 @@
     <string name="msg_importing">Importing folder…</string>
     <string name="msg_folder_imported">Folder imported</string>
     <string name="subfolder_new">+ Subfolder</string>
+    <string name="conflict_copy">conflict copy</string>
 </resources>

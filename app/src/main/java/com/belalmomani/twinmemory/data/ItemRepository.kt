@@ -29,6 +29,10 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
     fun totalSize() = items.observeTotalSize()
     fun fileFor(item: ItemEntity): File? = store.file(item.relPath)
 
+    /** Every new item gets a sync id (its own id unless it came from the other device). */
+    private suspend fun ins(e: ItemEntity) = items.insert(if (e.syncId.isEmpty()) e.copy(syncId = e.id) else e)
+    suspend fun insertRaw(e: ItemEntity) = ins(e)
+
     private fun now() = System.currentTimeMillis()
     private fun newId() = UUID.randomUUID().toString()
 
@@ -38,7 +42,7 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
         val link = Classify.isSingleUrl(t)
         val ts = now()
         runCatching {
-            items.insert(
+            ins(
                 ItemEntity(newId(), (if (link) ItemKind.LINK else ItemKind.TEXT).name,
                     if (link) Classify.hostOf(t) else Classify.titleFor(t), t, null, "text/plain",
                     t.toByteArray().size.toLong(), null, null, device, folderId, false, ts, ts, null)
@@ -62,7 +66,7 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
             val dup = items.countSha(stored.sha256) > 0
             val ts = now()
             try {
-                items.insert(
+                ins(
                     ItemEntity(id, Classify.kindFromMime(mime, name).name, name, null, name, mime, stored.size,
                         stored.sha256, stored.relPath, device, folderId, false, ts, ts, null)
                 )
@@ -111,7 +115,7 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
     }
     suspend fun renameFolder(id: String, name: String) { val n = name.trim(); if (n.isNotEmpty()) folderDao.rename(id, n) }
     suspend fun rename(id: String, title: String) { val t = title.trim(); if (t.isNotEmpty()) items.rename(id, t, now()) }
-    suspend fun setFavorite(id: String, fav: Boolean) = items.setFavorite(id, fav, now())
+    suspend fun setFavorite(id: String, fav: Boolean) = items.setFavorite(id, fav)
     suspend fun move(id: String, folderId: String?) = items.move(id, folderId, now())
     suspend fun trash(id: String) = items.setTrashed(id, now(), now())
     suspend fun restore(id: String) = items.setTrashed(id, null, now())
@@ -126,23 +130,23 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
     suspend fun removeTag(id: String, tag: String) = items.removeTag(ItemTag(id, tag))
 
     // ---- items received from the computer (id = the computer's transfer id, so a repeated delivery never duplicates) ----
-    suspend fun receiveText(id: String, kind: String, title: String, text: String, folderId: String? = null): Recv = withContext(Dispatchers.IO) {
+    suspend fun receiveText(id: String, kind: String, title: String, text: String, folderId: String? = null, syncId: String = ""): Recv = withContext(Dispatchers.IO) {
         try {
             val ts = now()
-            items.insert(ItemEntity(id, kind, title.ifBlank { Classify.titleFor(text) }, text, null, "text/plain",
-                text.toByteArray().size.toLong(), null, null, "pc", folderId, false, ts, ts, null))
+            ins(ItemEntity(id, kind, title.ifBlank { Classify.titleFor(text) }, text, null, "text/plain",
+                text.toByteArray().size.toLong(), null, null, "pc", folderId, false, ts, ts, null, syncId))
             Recv.OK
         } catch (e: Exception) { Recv.ERROR }
     }
 
-    suspend fun receiveFile(id: String, kind: String, name: String, mime: String?, file: File, size: Long, sha: String, folderId: String? = null): Recv = withContext(Dispatchers.IO) {
+    suspend fun receiveFile(id: String, kind: String, name: String, mime: String?, file: File, size: Long, sha: String, folderId: String? = null, syncId: String = ""): Recv = withContext(Dispatchers.IO) {
         try {
             if (file.length() != size) return@withContext Recv.BAD
             val st = file.inputStream().use { store.store(id, name, it) }
             if (st.sha256 != sha.lowercase()) { store.delete(id); return@withContext Recv.BAD }
             try {
                 val ts = now()
-                items.insert(ItemEntity(id, kind, name, null, name, mime?.ifBlank { null }, st.size, st.sha256, st.relPath, "pc", folderId, false, ts, ts, null))
+                ins(ItemEntity(id, kind, name, null, name, mime?.ifBlank { null }, st.size, st.sha256, st.relPath, "pc", folderId, false, ts, ts, null, syncId))
             } catch (e: Exception) { store.delete(id); return@withContext Recv.ERROR }
             file.delete()
             Recv.OK

@@ -155,4 +155,5 @@
     <string name="msg_importing">جارٍ استيراد المجلد…</string>
     <string name="msg_folder_imported">تم استيراد المجلد</string>
     <string name="subfolder_new">+ مجلد فرعي</string>
+    <string name="conflict_copy">نسخة متعارضة</string>
 </resources>

@@ -23,7 +23,10 @@ interface ItemDao {
     @Query("SELECT * FROM items WHERE id = :id") suspend fun get(id: String): ItemEntity?
     @Insert suspend fun insert(item: ItemEntity)
     @Query("UPDATE items SET title = :title, updatedAt = :now WHERE id = :id") suspend fun rename(id: String, title: String, now: Long)
-    @Query("UPDATE items SET favorite = :fav, updatedAt = :now WHERE id = :id") suspend fun setFavorite(id: String, fav: Boolean, now: Long)
+    @Query("UPDATE items SET favorite = :fav WHERE id = :id") suspend fun setFavorite(id: String, fav: Boolean) // per-device, not a synced change
+    @Query("SELECT * FROM items WHERE syncId = :s LIMIT 1") suspend fun bySync(s: String): ItemEntity?
+    @Query("SELECT * FROM items WHERE syncId != '' AND updatedAt > :since") suspend fun changedSince(since: Long): List<ItemEntity>
+    @Query("UPDATE items SET text = :t, sizeBytes = :s, updatedAt = :n WHERE id = :id") suspend fun setText(id: String, t: String, s: Long, n: Long)
     @Query("UPDATE items SET folderId = :folderId, updatedAt = :now WHERE id = :id") suspend fun move(id: String, folderId: String?, now: Long)
     @Query("UPDATE items SET trashedAt = :ts, updatedAt = :now WHERE id = :id") suspend fun setTrashed(id: String, ts: Long?, now: Long)
     @Query("DELETE FROM items WHERE id = :id") suspend fun delete(id: String)

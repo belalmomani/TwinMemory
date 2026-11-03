@@ -57,6 +57,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val meta = JSONObject().put("id", t.id).put("kind", item.kind).put("title", item.title)
             .put("mime", item.mimeType ?: "").put("size", item.sizeBytes)
         meta.put("folderPath", app.repo.folderPath(item.folderId) ?: "")
+        meta.put("syncId", item.syncId.ifEmpty { item.id })
         if (isText) meta.put("text", item.text ?: "")
         else meta.put("fileName", item.fileName ?: item.title).put("sha256", item.sha256 ?: "")
         val r = client.startTransfer(meta)

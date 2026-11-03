@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** No destructive fallback: schema changes ship as migrations so user data is never wiped. */
-@Database(entities = [FolderEntity::class, ItemEntity::class, ItemTag::class, TransferEntity::class, MirrorEntry::class], version = 3, exportSchema = true)
+@Database(entities = [FolderEntity::class, ItemEntity::class, ItemTag::class, TransferEntity::class, MirrorEntry::class], version = 4, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun items(): ItemDao
     abstract fun folders(): FolderDao
@@ -32,7 +32,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // syncId = same id on both devices; for items already transferred it is the transfer id both sides know
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE `items` SET `syncId` = COALESCE((SELECT t.`id` FROM `transfers` t WHERE t.`itemId` = `items`.`id` AND t.`state` = 'DONE' LIMIT 1), `id`)")
+            }
+        }
+
         fun create(ctx: Context): AppDatabase =
-            Room.databaseBuilder(ctx, AppDatabase::class.java, "twinmemory.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+            Room.databaseBuilder(ctx, AppDatabase::class.java, "twinmemory.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     }
 }

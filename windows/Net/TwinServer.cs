@@ -204,6 +204,9 @@ public class TwinServer
             }
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var folderPath = Str(r, "folderPath");
+            var syncId = Str(r, "syncId");
+            // the same logical item already exists here (e.g. re-sent): nothing to transfer
+            if (syncId.Length > 0 && _db.GetItemBySync(syncId) != null) return Results.Json(new { state = "done", offset = 0 });
             if (kind is "TEXT" or "LINK")
             {
                 var text = Str(r, "text");
@@ -213,7 +216,7 @@ public class TwinServer
                 _db.Insert(new Item
                 {
                     Id = itemId, Kind = link ? "LINK" : "TEXT", Title = link ? Classify.HostOf(text) : Classify.TitleFor(text), Text = text.Trim(),
-                    Mime = "text/plain", Size = Encoding.UTF8.GetByteCount(text), Source = "phone", FolderId = _db.EnsureFolderPath(folderPath), Created = now, Updated = now,
+                    Mime = "text/plain", Size = Encoding.UTF8.GetByteCount(text), Source = "phone", FolderId = _db.EnsureFolderPath(folderPath), SyncId = syncId.Length > 0 ? syncId : null, Created = now, Updated = now,
                 });
                 _db.InsertTransfer(new Transfer { Id = id, DeviceId = dev.Id, Kind = kind, Title = Classify.TitleFor(text), Size = Encoding.UTF8.GetByteCount(text), State = "done", ItemId = itemId, Started = now, Finished = now });
                 Notify();
@@ -230,7 +233,7 @@ public class TwinServer
             catch { }
             _db.InsertTransfer(new Transfer
             {
-                Id = id, DeviceId = dev.Id, Kind = kind, Title = fileName, FileName = fileName, Mime = Str(r, "mime"), Size = size, Sha256 = sha, State = "receiving", Started = now, FolderPath = folderPath,
+                Id = id, DeviceId = dev.Id, Kind = kind, Title = fileName, FileName = fileName, Mime = Str(r, "mime"), Size = size, Sha256 = sha, State = "receiving", Started = now, FolderPath = folderPath, SyncId = syncId.Length > 0 ? syncId : null,
             });
             Notify();
             return Results.Json(new { state = "receiving", offset = 0 });
@@ -292,11 +295,35 @@ public class TwinServer
             _db.Insert(new Item
             {
                 Id = itemId, Kind = t.Kind, Title = t.FileName, FileName = t.FileName, Mime = t.Mime, Size = t.Size, Sha256 = actual, RelPath = st.RelPath,
-                Source = "phone", FolderId = _db.EnsureFolderPath(t.FolderPath), Created = now, Updated = now,
+                Source = "phone", FolderId = _db.EnsureFolderPath(t.FolderPath), SyncId = string.IsNullOrEmpty(t.SyncId) ? null : t.SyncId, Created = now, Updated = now,
             });
             _db.FinishTransfer(id, itemId);
             Notify();
             return Results.Json(new { ok = true, duplicate = dup });
+        });
+
+        // ---- state sync: rename / trash(restore) / move / text edits. Phone sends its changes, gets ours. Nothing is permanently deleted. ----
+        app.MapPost("/sync", async (HttpContext c) =>
+        {
+            var dev = Auth(c);
+            if (dev == null) return Err(401, "unauthorized");
+            using var d = await JsonDocument.ParseAsync(c.Request.Body);
+            var r = d.RootElement;
+            long since = Num(r, "since");
+            bool baseline = r.TryGetProperty("baseline", out var bv) && bv.ValueKind == JsonValueKind.True; // first exchange: record a baseline, change nothing
+            var serverTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var paths = _db.FolderPaths();
+            bool any = false;
+            if (!baseline && r.TryGetProperty("changes", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                foreach (var ch in arr.EnumerateArray()) any |= ApplyRemote(ch, since);
+            var outList = baseline ? new List<object>() : _db.ChangedItems(Math.Max(0, since - 120_000)).Select(it => (object)new
+            {
+                syncId = it.SyncId, kind = it.Kind, title = it.Title, trashed = it.Trashed != null, updated = it.Updated,
+                folderPath = it.FolderId != null && paths.TryGetValue(it.FolderId, out var pp) ? pp : "",
+                text = it.Kind is "TEXT" or "LINK" && (it.Text?.Length ?? 0) <= 100_000 ? it.Text : null,
+            }).ToList();
+            if (any) Notify();
+            return Results.Json(new { serverTime, changes = outList });
         });
 
         // ---- computer -> phone: the phone pulls (the phone cannot accept inbound connections) ----
@@ -309,6 +336,7 @@ public class TwinServer
                 id = t.Id, kind = t.Kind, title = t.Title, fileName = t.FileName, mime = t.Mime, size = t.Size, sha256 = t.Sha256,
                 text = t.ItemId == null ? null : _db.GetItem(t.ItemId)?.Text,
                 folderPath = t.ItemId == null ? "" : (_db.FolderPath(_db.GetItem(t.ItemId)?.FolderId) ?? ""),
+                syncId = t.ItemId == null ? "" : (_db.GetItem(t.ItemId)?.SyncId ?? ""),
             }).ToList();
             return Results.Json(new { items = list });
         });
@@ -346,6 +374,46 @@ public class TwinServer
             Notify();
             return Results.Json(new { ok = true });
         });
+    }
+
+    /// <summary>Applies one change from the phone. Remote wins if we did not change the item since the last exchange, or it is newer. Text conflicts keep both versions.</summary>
+    bool ApplyRemote(JsonElement ch, long cursor)
+    {
+        var syncId = Str(ch, "syncId");
+        if (syncId.Length == 0) return false;
+        var it = _db.GetItemBySync(syncId);
+        if (it == null) return false;
+        var rUpd = Num(ch, "updated");
+        bool localChanged = it.Updated > cursor;
+        bool remoteWins = !localChanged || rUpd > it.Updated;
+        bool changed = false;
+
+        if (it.Kind is "TEXT" or "LINK" && ch.TryGetProperty("text", out var tx) && tx.ValueKind == JsonValueKind.String)
+        {
+            var rt = (tx.GetString() ?? "").Trim();
+            if (rt.Length > 0 && rt != (it.Text ?? "").Trim())
+            {
+                if (!localChanged) { _db.UpdateText(it.Id, rt, Encoding.UTF8.GetByteCount(rt)); changed = true; }
+                else
+                {
+                    var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    _db.Insert(new Item
+                    {
+                        Id = Guid.NewGuid().ToString(), Kind = it.Kind, Title = it.Title + " (" + S.T("نسخة متعارضة") + ")", Text = rt, Mime = "text/plain",
+                        Size = Encoding.UTF8.GetByteCount(rt), Source = "phone", FolderId = it.FolderId, Created = now, Updated = now,
+                    });
+                    changed = true; // both versions are kept
+                }
+            }
+        }
+        var title = Str(ch, "title");
+        if (remoteWins && title.Length > 0 && title != it.Title) { _db.Rename(it.Id, title); changed = true; }
+        bool rTrashed = ch.TryGetProperty("trashed", out var tv) && tv.ValueKind == JsonValueKind.True;
+        if (remoteWins && rTrashed != (it.Trashed != null)) { _db.SetTrashed(it.Id, rTrashed); changed = true; }
+        var fp = Str(ch, "folderPath");
+        var curPath = _db.FolderPath(it.FolderId) ?? "";
+        if (remoteWins && !fp.Equals(curPath, StringComparison.OrdinalIgnoreCase)) { _db.Move(it.Id, _db.EnsureFolderPath(fp)); changed = true; }
+        return changed;
     }
 
     // UDP discovery: the phone broadcasts a short message and gets the address/port back (manual IP entry remains as fallback).
