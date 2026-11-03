@@ -77,7 +77,7 @@ class MirrorSync(private val app: TwinMemoryApp) {
         fun pathOfFolder(id: String?): List<String>? {
             if (id == null) return null
             val parts = ArrayDeque<String>(); var cur = byId[id]; var g = 0
-            while (cur != null && g++ < 50) { parts.addFirst(dirName(cur.name)); cur = cur.parentId?.let { byId[it] } }
+            while (g++ < 50) { val f = cur ?: break; parts.addFirst(dirName(f.name)); cur = f.parentId?.let { byId[it] } }
             return if (parts.isEmpty()) null else parts.toList()
         }
         for (f in folderRows) {

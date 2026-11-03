@@ -93,7 +93,7 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
         if (id == null) return null
         val byId = folderDao.list().associateBy { it.id }
         val parts = ArrayDeque<String>(); var cur = byId[id]; var g = 0
-        while (cur != null && g++ < 50) { parts.addFirst(cur.name); cur = cur.parentId?.let { byId[it] } }
+        while (g++ < 50) { val f = cur ?: break; parts.addFirst(f.name); cur = f.parentId?.let { byId[it] } }
         return if (parts.isEmpty()) null else parts.joinToString("/")
     }
 

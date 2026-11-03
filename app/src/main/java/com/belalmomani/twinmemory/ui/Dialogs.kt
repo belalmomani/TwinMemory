@@ -104,6 +104,6 @@ fun PropertiesDialog(item: ItemEntity, tags: List<String>, onOpen: () -> Unit, o
 fun pathLabel(f: FolderEntity, all: List<FolderEntity>): String {
     val byId = all.associateBy { it.id }
     val parts = ArrayDeque<String>(); var cur: FolderEntity? = f; var g = 0
-    while (cur != null && g++ < 50) { parts.addFirst(cur.name); cur = cur.parentId?.let { byId[it] } }
+    while (g++ < 50) { val f = cur ?: break; parts.addFirst(f.name); cur = f.parentId?.let { byId[it] } }
     return parts.joinToString(" / ")
 }

@@ -25,7 +25,7 @@ class StateSync(private val app: TwinMemoryApp) {
         val byId = rows.associateBy { it.id }
         return rows.associate { f ->
             val parts = ArrayDeque<String>(); var cur: com.belalmomani.twinmemory.data.db.FolderEntity? = f; var g = 0
-            while (cur != null && g++ < 50) { parts.addFirst(cur.name); cur = cur.parentId?.let { byId[it] } }
+            while (g++ < 50) { val f = cur ?: break; parts.addFirst(f.name); cur = f.parentId?.let { byId[it] } }
             f.id to parts.joinToString("/")
         }
     }
