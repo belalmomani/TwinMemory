@@ -45,6 +45,22 @@ fun SaveChoiceDialog(onText: () -> Unit, onFile: () -> Unit, onFolder: () -> Uni
 }
 
 @Composable
+fun ImportModeDialog(onCopy: () -> Unit, onMove: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.import_mode_title)) },
+        text = {
+            Column {
+                TextButton({ onDismiss(); onCopy() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_copy)) }
+                TextButton({ onDismiss(); onMove() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_move)) }
+                Text(stringResource(R.string.import_move_note), style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {}, dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+@Composable
 fun MoveDialog(folders: List<FolderEntity>, onPick: (String?) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,

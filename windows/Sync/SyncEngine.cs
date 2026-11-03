@@ -267,7 +267,7 @@ public class SyncEngine : IDisposable
                 if (ApplyEdit(item, fi, sha, m)) changed = true; else retry = true;
                 continue;
             }
-            if (item.Title != m.Title || item.FolderId != m.FolderId)
+            if (item.Title != m.Title || item.FolderId != m.FolderId || DirDiffers(item, m, nameByFolder))
             {
                 if (MoveMirror(item, m, fi, nameByFolder)) { /* mirror follows an app-side rename/move */ }
             }
@@ -357,6 +357,33 @@ public class SyncEngine : IDisposable
         catch (UnauthorizedAccessException) { return false; }
     }
 
+    /// <summary>True when the item sits in a folder directory that no longer matches its folder path (folder moved or renamed).</summary>
+    bool DirDiffers(Item it, SyncEntry m, Dictionary<string, string> nameByFolder)
+    {
+        if (it.FolderId == null || !nameByFolder.TryGetValue(it.FolderId, out var expected)) return false;
+        var i = m.RelPath.LastIndexOf('/');
+        var actual = i < 0 ? "" : m.RelPath[..i];
+        return !string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase);
+    }
+
+    void PruneEmptyDirs(string? dir)
+    {
+        try
+        {
+            var rootFull = Path.GetFullPath(Root).TrimEnd(Path.DirectorySeparatorChar);
+            while (!string.IsNullOrEmpty(dir))
+            {
+                var full = Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar);
+                if (string.Equals(full, rootFull, StringComparison.OrdinalIgnoreCase) || !full.StartsWith(rootFull + Path.DirectorySeparatorChar)) break;
+                if (_cats.Contains(Path.GetFileName(full), StringComparer.OrdinalIgnoreCase) && Path.GetDirectoryName(full) == rootFull) break;
+                if (Directory.EnumerateFileSystemEntries(full).Any()) break;
+                Directory.Delete(full);
+                dir = Path.GetDirectoryName(full);
+            }
+        }
+        catch { }
+    }
+
     bool MoveMirror(Item it, SyncEntry m, FileInfo fi, Dictionary<string, string> nameByFolder)
     {
         try
@@ -371,7 +398,9 @@ public class SyncEngine : IDisposable
                 return true;
             }
             var dest = Unique(dir, ExportName(it));
+            var oldDir = fi.DirectoryName;
             File.Move(fi.FullName, dest); // Unique() guarantees no overwrite
+            PruneEmptyDirs(oldDir); // otherwise the emptied old folder would come back as a folder
             var nf = new FileInfo(dest);
             _db.UpsertMap(m with { RelPath = Rel(dest), Size = nf.Length, MTime = nf.LastWriteTimeUtc.Ticks, Title = it.Title, FolderId = it.FolderId });
             return true;

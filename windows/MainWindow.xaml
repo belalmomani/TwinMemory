@@ -21,6 +21,11 @@
       <MenuItem Header="{l:T 'ترتيب حسب الحجم'}" Tag="sort:size" Click="Cmd"/>
       <MenuItem Header="{l:T 'ترتيب حسب النوع'}" Tag="sort:type" Click="Cmd"/>
     </ContextMenu>
+    <ContextMenu x:Key="FolderMenu">
+      <MenuItem Header="{l:T 'إعادة تسمية المجلد'}" Tag="renamefolder" Click="Cmd"/>
+      <MenuItem Header="{l:T 'نقل المجلد إلى…'}" Tag="movefolder" Click="Cmd"/>
+      <MenuItem Header="{l:T 'نسخ المجلد إلى…'}" Tag="copyfolder" Click="Cmd"/>
+    </ContextMenu>
     <ContextMenu x:Key="ItemMenu" Opened="ItemMenu_Opened">
       <MenuItem Header="{l:T 'فتح'}" Tag="open" Click="Cmd"/>
       <MenuItem Header="{l:T 'نسخ'}" Tag="copy" Click="Cmd"/>
@@ -126,7 +131,7 @@
     <Grid Grid.Row="3" Margin="0,10,0,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1,0,1,0">
-        <ListBox x:Name="Nav" BorderThickness="0" SelectionChanged="Nav_Changed">
+        <ListBox x:Name="Nav" BorderThickness="0" SelectionChanged="Nav_Changed" ContextMenu="{StaticResource FolderMenu}" ContextMenuOpening="Nav_MenuOpening" PreviewMouseRightButtonDown="Nav_RightClick">
           <ListBox.ItemTemplate>
             <DataTemplate><TextBlock Text="{Binding Title}" Padding="{Binding Pad}"/></DataTemplate>
           </ListBox.ItemTemplate>

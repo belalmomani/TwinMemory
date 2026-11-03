@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using TwinMemory.Core;
 
 namespace TwinMemory;
@@ -52,6 +53,25 @@ public static class Dlg
         var panel = new StackPanel { Margin = new Thickness(16) };
         panel.Children.Add(lb);
         panel.Children.Add(Buttons(w, Accept, "OK"));
+        w.Content = panel;
+        return w.ShowDialog() == true ? result : null;
+    }
+
+    /// <summary>null = cancelled, false = copy (original stays), true = move (original removed after verification).</summary>
+    public static bool? ImportMode(Window owner)
+    {
+        var w = Make(owner, "TwinMemory");
+        bool? result = null;
+        var copy = new Button { Content = S.T("نسخ (يبقى الأصل)"), IsDefault = true, Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 8, 0, 0) };
+        copy.Click += (_, _) => { result = false; w.DialogResult = true; };
+        var move = new Button { Content = S.T("نقل (يُحذف الأصل بعد التحقق)"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 8, 0, 0) };
+        move.Click += (_, _) => { result = true; w.DialogResult = true; };
+        var cancel = new Button { Content = S.T("إلغاء"), IsCancel = true, Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 8, 0, 0) };
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock { Text = S.T("كيف تريد الاستيراد؟"), FontWeight = FontWeights.SemiBold });
+        panel.Children.Add(copy); panel.Children.Add(move);
+        panel.Children.Add(new TextBlock { Text = S.T("النقل لا يحذف الأصل إلا بعد التأكد من سلامة النسخة المحفوظة، ويذهب إلى سلة Windows."), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray, FontSize = 11, Margin = new Thickness(0, 8, 0, 0) });
+        panel.Children.Add(cancel);
         w.Content = panel;
         return w.ShowDialog() == true ? result : null;
     }

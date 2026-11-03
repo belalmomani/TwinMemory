@@ -1,5 +1,6 @@
 package com.belalmomani.twinmemory.ui
 
+import android.net.Uri
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.belalmomani.twinmemory.BuildConfig
+import com.belalmomani.twinmemory.data.subtreeIds
 import com.belalmomani.twinmemory.R
 import com.belalmomani.twinmemory.data.db.ItemEntity
 import com.belalmomani.twinmemory.domain.ItemKind
@@ -41,6 +43,9 @@ private sealed interface Dlg {
     data class Move(val item: ItemEntity) : Dlg
     data class Props(val item: ItemEntity) : Dlg
     data class Forever(val item: ItemEntity) : Dlg
+    data class MoveFolder(val id: String) : Dlg
+    data class CopyFolder(val id: String) : Dlg
+    data class ImportMode(val uri: Uri) : Dlg
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,7 +74,7 @@ fun MainScreen(vm: MainViewModel) {
     val openFolder by vm.openFolder.collectAsStateWithLifecycle()
     val conn by vm.conn.collectAsStateWithLifecycle()
     val mirror by vm.mirrorName.collectAsStateWithLifecycle()
-    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u -> if (u != null) vm.importTree(u) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u -> if (u != null) dlg = Dlg.ImportMode(u) }
     val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { u -> if (u != null) vm.setMirrorFolder(u) }
     val queue by vm.transfersList.collectAsStateWithLifecycle()
 
@@ -164,6 +169,15 @@ fun MainScreen(vm: MainViewModel) {
                         IconButton({ vm.openFolder.value = folders.firstOrNull { it.id == openFolder }?.parentId }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                         Text(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         TextButton({ dlg = Dlg.NewFolder }) { Text(stringResource(R.string.subfolder_new)) }
+                        var folderMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton({ folderMenu = true }) { Icon(Icons.Filled.MoreVert, null) }
+                            DropdownMenu(folderMenu, { folderMenu = false }) {
+                                DropdownMenuItem({ Text(stringResource(R.string.rename)) }, { folderMenu = false; dlg = Dlg.RenameFolder(openFolder ?: "", name) })
+                                DropdownMenuItem({ Text(stringResource(R.string.folder_move)) }, { folderMenu = false; dlg = Dlg.MoveFolder(openFolder ?: "") })
+                                DropdownMenuItem({ Text(stringResource(R.string.folder_copy)) }, { folderMenu = false; dlg = Dlg.CopyFolder(openFolder ?: "") })
+                            }
+                        }
                     }
                     val subs = folders.filter { it.parentId == openFolder }
                     if (subs.isNotEmpty()) LazyRow(contentPadding = PaddingValues(16.dp, 0.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -187,6 +201,9 @@ fun MainScreen(vm: MainViewModel) {
         is Dlg.RenameFolder -> TextInputDialog(R.string.rename, R.string.folder_name, d.name, onDismiss = { dlg = null }, onOk = { vm.renameFolder(d.id, it) })
         is Dlg.Rename -> TextInputDialog(R.string.rename, R.string.name, d.item.title, onDismiss = { dlg = null }, onOk = { vm.rename(d.item, it) })
         is Dlg.Move -> MoveDialog(folders, { vm.move(d.item, it) }, { dlg = null })
+        is Dlg.ImportMode -> ImportModeDialog({ vm.importTree(d.uri, false) }, { vm.importTree(d.uri, true) }, { dlg = null })
+        is Dlg.MoveFolder -> { val ex = subtreeIds(d.id, folders); MoveDialog(folders.filter { f -> f.id !in ex }, { vm.moveFolder(d.id, it) }, { dlg = null }) }
+        is Dlg.CopyFolder -> { val ex = subtreeIds(d.id, folders); MoveDialog(folders.filter { f -> f.id !in ex }, { vm.copyFolder(d.id, it) }, { dlg = null }) }
         is Dlg.Props -> PropertiesDialog(d.item, tags[d.item.id].orEmpty(),
             onOpen = { if (!openItem(ctx, d.item, vm.fileFor(d.item))) vm.toast(R.string.msg_cannot_open) },
             onAddTag = { vm.addTag(d.item, it) }, onRemoveTag = { vm.removeTag(d.item, it) }, onDismiss = { dlg = null })

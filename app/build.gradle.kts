@@ -24,8 +24,8 @@ android {
         applicationId = "com.belalmomani.twinmemory" // must never change
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.4.1"
+        versionCode = 7
+        versionName = "1.5.0"
         resourceConfigurations += listOf("ar", "en")
     }
 

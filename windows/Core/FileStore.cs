@@ -69,6 +69,19 @@ public class FileStore
         catch { try { File.Delete(tmp); } catch { } throw; }
     }
 
+    /// <summary>Copies an item's stored file for a new item id (used when copying a folder). Returns the new relative path or null.</summary>
+    public string? Duplicate(string rel, string newId)
+    {
+        var src = PathFor(rel);
+        if (src == null) return null;
+        var dir = Path.Combine(_root, newId);
+        Directory.CreateDirectory(dir);
+        var dest = Path.GetFullPath(Path.Combine(dir, Path.GetFileName(src)));
+        if (!dest.StartsWith(_root + Path.DirectorySeparatorChar)) return null;
+        try { File.Copy(src, dest, false); return newId + "/" + Path.GetFileName(src); }
+        catch { Delete(newId); return null; }
+    }
+
     public string? PathFor(string? rel)
     {
         if (rel == null) return null;

@@ -152,4 +152,49 @@ class ItemRepository(private val ctx: Context, private val db: AppDatabase, priv
             Recv.OK
         } catch (e: Exception) { store.delete(id); Recv.ERROR }
     }
+
+    // ---- whole-folder move / copy (inside the app) ----
+    private fun uniqueFolderName(all: List<FolderEntity>, parent: String?, name: String, exceptId: String? = null): String {
+        val taken = all.filter { it.parentId == parent && it.id != exceptId }.map { it.name.lowercase() }.toSet()
+        var n = name; var i = 2
+        while (n.lowercase() in taken) { n = "$name ($i)"; i++ }
+        return n
+    }
+
+    /** False when the target is the folder itself or inside it. A name clash gets " (2)"; nothing is overwritten. */
+    suspend fun moveFolder(id: String, newParent: String?): Boolean {
+        val all = folderDao.list()
+        val f = all.firstOrNull { it.id == id } ?: return false
+        val sub = subtreeIds(id, all)
+        if (newParent != null && newParent in sub) return false
+        if (f.parentId == newParent) return true
+        folderDao.setParent(id, newParent, uniqueFolderName(all, newParent, f.name, id))
+        val ts = now()
+        sub.toList().chunked(400).forEach { items.touchInFolders(it, ts) } // so the new location reaches the other device
+        return true
+    }
+
+    /** Returns how many items were copied. Stored files are duplicated (uses more space). */
+    suspend fun copyFolder(id: String, newParent: String?): Int = withContext(Dispatchers.IO) {
+        val all = folderDao.list()
+        val src = all.firstOrNull { it.id == id } ?: return@withContext 0
+        var n = 0
+        suspend fun rec(f: FolderEntity, parent: String?) {
+            val nid = newId()
+            folderDao.insert(FolderEntity(nid, uniqueFolderName(folderDao.list(), parent, f.name), parent, now()))
+            for (item in items.inFolder(f.id)) if (copyItem(item, nid)) n++
+            for (c in all.filter { it.parentId == f.id }) rec(c, nid)
+        }
+        rec(src, newParent)
+        n
+    }
+
+    private suspend fun copyItem(src: ItemEntity, folderId: String): Boolean {
+        val nid = newId()
+        var rel: String? = null
+        if (src.relPath != null) { rel = store.duplicate(src.relPath, nid) ?: return false }
+        val ts = now()
+        ins(src.copy(id = nid, relPath = rel, folderId = folderId, createdAt = ts, updatedAt = ts, trashedAt = null, favorite = false, sourceDevice = "phone", syncId = ""))
+        return true
+    }
 }

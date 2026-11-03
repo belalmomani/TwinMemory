@@ -156,4 +156,15 @@
     <string name="msg_folder_imported">Folder imported</string>
     <string name="subfolder_new">+ Subfolder</string>
     <string name="conflict_copy">conflict copy</string>
+    <string name="import_mode_title">How do you want to import the folder?</string>
+    <string name="import_copy">Copy (original stays)</string>
+    <string name="import_move">Move (original removed after verification)</string>
+    <string name="import_move_note">Move never deletes an original before the saved copy is verified, and only removes folders that are completely empty.</string>
+    <string name="folder_move">Move folder to…</string>
+    <string name="folder_copy">Copy folder to…</string>
+    <string name="msg_folder_moved">Folder moved</string>
+    <string name="msg_folder_moved_in">Folder moved — originals removed after every file was verified</string>
+    <string name="msg_folder_moved_partial">Imported; some originals were not removed (changed or not allowed) and stay as they are</string>
+    <string name="msg_folder_move_bad">A folder cannot be moved into itself or one of its sub-folders</string>
+    <string name="msg_folder_copied">Folder copied</string>
 </resources>

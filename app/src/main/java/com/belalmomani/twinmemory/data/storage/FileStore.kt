@@ -14,6 +14,14 @@ class FileStore(ctx: Context) {
 
     data class Stored(val relPath: String, val size: Long, val sha256: String)
 
+    /** Copies an item's stored file for a new item id (folder copy). Returns the new relative path or null. */
+    fun duplicate(rel: String, newId: String): String? {
+        val src = file(rel) ?: return null
+        val dir = File(root, newId).apply { mkdirs() }
+        return try { src.copyTo(File(dir, src.name), overwrite = false); newId + "/" + src.name }
+        catch (e: Exception) { dir.deleteRecursively(); null }
+    }
+
     @Throws(IOException::class)
     fun store(id: String, name: String, input: InputStream): Stored {
         val safe = Classify.sanitizeFileName(name)

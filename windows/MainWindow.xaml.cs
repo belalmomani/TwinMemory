@@ -23,6 +23,7 @@ public partial class MainWindow : Window
 {
     readonly Database _db = App.Db;
     readonly FileStore _store = App.Store;
+    readonly FolderOps _ops = new(App.Db, App.Store);
     List<Item> _items = new();
     List<Folder> _folders = new();
     string _navKey = "zone:all";
@@ -168,7 +169,9 @@ public partial class MainWindow : Window
         Refresh();
     }
 
-    bool ImportOne(string path, string? folder)
+    record Imported(bool Dup, string Sha, long Size, string Rel);
+
+    Imported ImportOne(string path, string? folder)
     {
         var id = Guid.NewGuid().ToString();
         var name = Path.GetFileName(path);
@@ -185,13 +188,38 @@ public partial class MainWindow : Window
             });
         }
         catch { _store.Delete(id); throw; }
-        return dup;
+        return new Imported(dup, st.Sha256, st.Size, st.RelPath);
     }
 
-    /// <summary>Imports a whole directory tree: every sub-folder becomes a folder in the app, every file an item inside it.</summary>
-    (int Count, bool Dup, bool Fail) ImportTree(string dir, string? baseFolder)
+    static string? HashOf(string path)
     {
-        int n = 0; bool dup = false, fail = false;
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(fs)).ToLowerInvariant();
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Move mode: the original goes to the Recycle Bin only if it is exactly what was stored and the stored copy is intact.</summary>
+    bool RemoveOriginal(string path, Imported r)
+    {
+        try
+        {
+            var fi = new FileInfo(path);
+            if (!fi.Exists || fi.Length != r.Size || HashOf(path) != r.Sha) return false;
+            var stored = _store.PathFor(r.Rel);
+            if (stored == null || new FileInfo(stored).Length != r.Size) return false;
+            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(path, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Imports a whole directory tree: every sub-folder becomes a folder in the app, every file an item inside it. move = remove verified originals.</summary>
+    (int Count, bool Dup, bool Fail, int Removed) ImportTree(string dir, string? baseFolder, bool move)
+    {
+        int n = 0, removed = 0; bool dup = false, fail = false;
         string Join(string a, string b) => string.IsNullOrEmpty(b) ? a : string.IsNullOrEmpty(a) ? b : a + "/" + b;
         var start = Join(_db.FolderPath(baseFolder) ?? "", new DirectoryInfo(dir).Name);
         _db.EnsureFolderPath(start);
@@ -204,33 +232,64 @@ public partial class MainWindow : Window
             if (name.StartsWith("~$") || name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || name.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase)) continue;
             var rel = (Path.GetDirectoryName(Path.GetRelativePath(dir, f)) ?? "").Replace('\\', '/');
             var folderId = _db.EnsureFolderPath(Join(start, rel));
-            try { dup |= ImportOne(f, folderId); n++; } catch { fail = true; }
+            try
+            {
+                var r = ImportOne(f, folderId);
+                dup |= r.Dup; n++;
+                if (move && RemoveOriginal(f, r)) removed++;
+            }
+            catch { fail = true; }
         }
-        return (n, dup, fail);
+        if (move)
+        {
+            // only directories that are now completely empty are removed (deepest first)
+            foreach (var d in Directory.EnumerateDirectories(dir, "*", opt).OrderByDescending(x => x.Length))
+                try { if (!Directory.EnumerateFileSystemEntries(d).Any()) Directory.Delete(d); } catch { }
+            try { if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); } catch { }
+        }
+        return (n, dup, fail, removed);
     }
 
-    async void ImportPaths(List<string> paths)
+    async void ImportPaths(List<string> paths, bool move = false)
     {
-        int ok = 0; bool dup = false, fail = false;
+        int ok = 0, removed = 0; bool dup = false, fail = false;
         var folder = CurrentFolder();
         foreach (var p in paths)
         {
             if (Directory.Exists(p))
             {
                 Status(S.T("جارٍ استيراد المجلد…"));
-                var r = await Task.Run(() => ImportTree(p, folder));
-                ok += r.Count; dup |= r.Dup; fail |= r.Fail;
+                var r = await Task.Run(() => ImportTree(p, folder, move));
+                ok += r.Count; dup |= r.Dup; fail |= r.Fail; removed += r.Removed;
                 BuildNav();
                 continue;
             }
             if (!File.Exists(p)) continue;
-            try { dup |= await Task.Run(() => ImportOne(p, folder)); ok++; }
+            try
+            {
+                var r = await Task.Run(() =>
+                {
+                    var imp = ImportOne(p, folder);
+                    return (imp, removed: move && RemoveOriginal(p, imp));
+                });
+                dup |= r.imp.Dup; ok++;
+                if (r.removed) removed++;
+            }
             catch { fail = true; } // e.g. disk full: nothing existing is touched
         }
         Refresh();
         if (fail) Status(S.T("تعذّر الحفظ. عناصرك السابقة سليمة."));
+        else if (move && ok > 0) Status(removed == ok ? S.T("تم النقل — نُقلت الأصول إلى سلة Windows بعد التحقق") : S.T("بعض الأصول لم تُحذف (تغيّرت أو مقفلة) فبقيت كما هي"));
         else if (dup) Status(S.T("تم الحفظ — يشبه عنصرًا محفوظًا مسبقًا"));
         else if (ok > 0) Status(S.T("تم الحفظ"));
+    }
+
+    async void CopyFolderAsync(string folderId, string? parent)
+    {
+        Status(S.T("جارٍ نسخ المجلد…"));
+        var n = await Task.Run(() => _ops.Copy(folderId, parent));
+        BuildNav(); Refresh();
+        Status(S.T("تم نسخ المجلد") + $" ({n})");
     }
 
     // ---- actions ----
@@ -255,7 +314,18 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (Clipboard.ContainsFileDropList()) { ImportPaths(Clipboard.GetFileDropList().Cast<string>().ToList()); return; }
+            if (Clipboard.ContainsFileDropList())
+            {
+                // Explorer "Cut" (move) vs "Copy" is honoured: cut files are moved in, copied files are copied in.
+                bool cut = false;
+                try
+                {
+                    if (Clipboard.GetData("Preferred DropEffect") is MemoryStream ms) { var b = new byte[4]; if (ms.Read(b, 0, 4) == 4) cut = (BitConverter.ToInt32(b, 0) & 2) != 0; }
+                }
+                catch { }
+                ImportPaths(Clipboard.GetFileDropList().Cast<string>().ToList(), cut);
+                return;
+            }
             if (Clipboard.ContainsText()) { SaveText(Clipboard.GetText()); return; }
         }
         catch { }
@@ -293,7 +363,7 @@ public partial class MainWindow : Window
             case "import":
             {
                 var d = new OpenFileDialog { Multiselect = true };
-                if (d.ShowDialog(this) == true) ImportPaths(d.FileNames.ToList());
+                if (d.ShowDialog(this) == true) { var mode = Dlg.ImportMode(this); if (mode != null) ImportPaths(d.FileNames.ToList(), mode.Value); }
                 break;
             }
             case "newfolder":
@@ -305,7 +375,36 @@ public partial class MainWindow : Window
             case "importfolder":
             {
                 var fd = new OpenFolderDialog();
-                if (fd.ShowDialog(this) == true) ImportPaths(new List<string> { fd.FolderName });
+                if (fd.ShowDialog(this) == true) { var mode = Dlg.ImportMode(this); if (mode != null) ImportPaths(new List<string> { fd.FolderName }, mode.Value); }
+                break;
+            }
+            case "renamefolder":
+            {
+                var fid = CurrentFolder();
+                if (fid == null) break;
+                var nn = Dlg.Input(this, S.T("اسم المجلد"), _folders.FirstOrDefault(x => x.Id == fid)?.Name ?? "");
+                if (nn != null) { _db.RenameFolder(fid, nn.Trim()); BuildNav(); Refresh(); }
+                break;
+            }
+            case "movefolder":
+            case "copyfolder":
+            {
+                var fid = CurrentFolder();
+                if (fid == null) break;
+                var all = _db.Folders();
+                var exclude = FolderOps.Subtree(all, fid); // never into itself or one of its sub-folders
+                var paths = _db.FolderPaths();
+                var opts = new List<Choice> { new(null, S.T("بدون مجلد (الجذر)")) };
+                opts.AddRange(all.Where(x => !exclude.Contains(x.Id)).Select(x => new Choice(x.Id, paths.GetValueOrDefault(x.Id) ?? x.Name)).OrderBy(c => c.Name));
+                var pick = Dlg.Pick(this, S.T(tag == "movefolder" ? "نقل المجلد إلى…" : "نسخ المجلد إلى…"), opts);
+                if (pick == null) break;
+                if (tag == "movefolder")
+                {
+                    var err = _ops.Move(fid, pick.Id);
+                    BuildNav(); Refresh();
+                    Status(err == null ? S.T("تم نقل المجلد") : S.T("لا يمكن نقل المجلد إلى نفسه أو إلى أحد مجلداته الفرعية"));
+                }
+                else CopyFolderAsync(fid, pick.Id);
                 break;
             }
             case "selall": Active.SelectAll(); break;
@@ -462,6 +561,16 @@ public partial class MainWindow : Window
         m.IsOpen = true;
     }
 
+    void Nav_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ItemsControl.ContainerFromElement(Nav, e.OriginalSource as DependencyObject) is ListBoxItem li) li.IsSelected = true;
+    }
+
+    void Nav_MenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (!_navKey.StartsWith("folder:")) e.Handled = true; // the folder menu only appears on a custom folder
+    }
+
     void ItemMenu_Opened(object sender, RoutedEventArgs e)
     {
         var trash = _navKey == "trash";
@@ -476,7 +585,11 @@ public partial class MainWindow : Window
 
     void Window_Drop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files) ImportPaths(files.ToList());
+        if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files)
+        {
+            var mode = Dlg.ImportMode(this);
+            if (mode != null) ImportPaths(files.ToList(), mode.Value);
+        }
         else if (e.Data.GetDataPresent(DataFormats.UnicodeText) && e.Data.GetData(DataFormats.UnicodeText) is string s) SaveText(s);
     }
 

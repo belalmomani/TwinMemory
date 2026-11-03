@@ -156,4 +156,15 @@
     <string name="msg_folder_imported">تم استيراد المجلد</string>
     <string name="subfolder_new">+ مجلد فرعي</string>
     <string name="conflict_copy">نسخة متعارضة</string>
+    <string name="import_mode_title">كيف تريد استيراد المجلد؟</string>
+    <string name="import_copy">نسخ (يبقى الأصل)</string>
+    <string name="import_move">نقل (يُحذف الأصل بعد التحقق)</string>
+    <string name="import_move_note">النقل لا يحذف أي ملف أصلي قبل التأكد من سلامة النسخة المحفوظة، ولا يحذف إلا المجلدات الفارغة تمامًا.</string>
+    <string name="folder_move">نقل المجلد إلى…</string>
+    <string name="folder_copy">نسخ المجلد إلى…</string>
+    <string name="msg_folder_moved">تم نقل المجلد</string>
+    <string name="msg_folder_moved_in">تم نقل المجلد — حُذفت الأصول بعد التحقق من كل ملف</string>
+    <string name="msg_folder_moved_partial">تم الاستيراد؛ بعض الأصول لم تُحذف (تغيّرت أو لا يسمح النظام) فبقيت كما هي</string>
+    <string name="msg_folder_move_bad">لا يمكن نقل المجلد إلى نفسه أو إلى أحد مجلداته الفرعية</string>
+    <string name="msg_folder_copied">تم نسخ المجلد</string>
 </resources>

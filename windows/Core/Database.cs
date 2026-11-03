@@ -377,4 +377,23 @@ CREATE INDEX IF NOT EXISTS ix_items_sync ON items(sync_id);");
         }
         return map;
     }
+
+    public void SetFolderParent(string id, string? parentId, string name)
+    {
+        using var c = Open();
+        Exec(c, "UPDATE folders SET parent_id=$p, name=$n WHERE id=$id", ("$p", parentId), ("$n", name), ("$id", id));
+    }
+
+    /// <summary>Marks items inside the given folders as changed so a folder move reaches the other device.</summary>
+    public void TouchItemsInFolders(IEnumerable<string> folderIds)
+    {
+        var ids = folderIds.ToList();
+        if (ids.Count == 0) return;
+        using var c = Open(); using var cmd = c.CreateCommand();
+        var names = new List<string>();
+        for (int i = 0; i < ids.Count; i++) { names.Add("$f" + i); cmd.Parameters.AddWithValue("$f" + i, ids[i]); }
+        cmd.Parameters.AddWithValue("$n", Now());
+        cmd.CommandText = $"UPDATE items SET updated=$n WHERE folder_id IN ({string.Join(",", names)})";
+        cmd.ExecuteNonQuery();
+    }
 }

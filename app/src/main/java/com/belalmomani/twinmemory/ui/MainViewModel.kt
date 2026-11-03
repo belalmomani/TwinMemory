@@ -236,10 +236,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun createFolder(n: String) = viewModelScope.launch { repo.createFolder(n, openFolder.value) }
 
     /** Imports a whole directory tree chosen on the phone: sub-folders become folders, files become items (then auto-sent to the computer). */
-    fun importTree(uri: Uri) = viewModelScope.launch {
+    fun importTree(uri: Uri, move: Boolean = false) = viewModelScope.launch {
         msgs.tryEmit(R.string.msg_importing)
-        val n = com.belalmomani.twinmemory.transfer.TreeImporter(tapp).run(uri, openFolder.value)
-        msgs.tryEmit(if (n > 0) R.string.msg_folder_imported else R.string.msg_save_failed)
+        val r = com.belalmomani.twinmemory.transfer.TreeImporter(tapp).run(uri, openFolder.value, move)
+        msgs.tryEmit(when {
+            r.imported == 0 -> R.string.msg_save_failed
+            move && r.removed == r.imported -> R.string.msg_folder_moved_in
+            move -> R.string.msg_folder_moved_partial
+            else -> R.string.msg_folder_imported
+        })
+        autoSend()
+    }
+
+    fun moveFolder(id: String, parent: String?) = viewModelScope.launch {
+        msgs.tryEmit(if (repo.moveFolder(id, parent)) R.string.msg_folder_moved else R.string.msg_folder_move_bad)
+    }
+
+    fun copyFolder(id: String, parent: String?) = viewModelScope.launch {
+        msgs.tryEmit(R.string.msg_importing)
+        repo.copyFolder(id, parent)
+        msgs.tryEmit(R.string.msg_folder_copied)
         autoSend()
     }
     fun renameFolder(id: String, n: String) = viewModelScope.launch { repo.renameFolder(id, n) }

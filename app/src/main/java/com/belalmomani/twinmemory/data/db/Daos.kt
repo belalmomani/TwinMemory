@@ -24,6 +24,8 @@ interface ItemDao {
     @Insert suspend fun insert(item: ItemEntity)
     @Query("UPDATE items SET title = :title, updatedAt = :now WHERE id = :id") suspend fun rename(id: String, title: String, now: Long)
     @Query("UPDATE items SET favorite = :fav WHERE id = :id") suspend fun setFavorite(id: String, fav: Boolean) // per-device, not a synced change
+    @Query("SELECT * FROM items WHERE folderId = :f AND trashedAt IS NULL") suspend fun inFolder(f: String): List<ItemEntity>
+    @Query("UPDATE items SET updatedAt = :n WHERE folderId IN (:ids)") suspend fun touchInFolders(ids: List<String>, n: Long)
     @Query("SELECT * FROM items WHERE syncId = :s LIMIT 1") suspend fun bySync(s: String): ItemEntity?
     @Query("SELECT * FROM items WHERE syncId != '' AND updatedAt > :since") suspend fun changedSince(since: Long): List<ItemEntity>
     @Query("UPDATE items SET text = :t, sizeBytes = :s, updatedAt = :n WHERE id = :id") suspend fun setText(id: String, t: String, s: Long, n: Long)
@@ -41,6 +43,7 @@ interface ItemDao {
 interface FolderDao {
     @Query("SELECT * FROM folders ORDER BY name COLLATE NOCASE") fun observe(): Flow<List<FolderEntity>>
     @Query("SELECT * FROM folders") suspend fun list(): List<FolderEntity>
+    @Query("UPDATE folders SET parentId = :p, name = :n WHERE id = :id") suspend fun setParent(id: String, p: String?, n: String)
     @Insert suspend fun insert(folder: FolderEntity)
     @Query("UPDATE folders SET name = :name WHERE id = :id") suspend fun rename(id: String, name: String)
 }
