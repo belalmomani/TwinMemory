@@ -1,0 +1,23 @@
+name: Tests
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  android-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - run: gradle :app:testDebugUnitTest --no-daemon
+
+  windows-unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - run: dotnet test windows/Tests/TwinMemory.Tests.csproj -c Release
